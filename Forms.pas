@@ -5,7 +5,7 @@ unit Forms;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, Controls, Strings;
+  WinTypes, WinProcs, Classes, Graphics, Controls, Menus, Strings;
 
 type
   TWindowState = (wsNormal, wsMinimized, wsMaximized);
@@ -25,6 +25,7 @@ type
     FBorderStyle: TFormBorderStyle;
     FPosition: TFormPosition;
     FModalResult: TModalResult;
+    FMenu: TMainMenu;
     FOnCreate: TNotifyEvent;
     FOnDestroy: TNotifyEvent;
     FOnShow: TNotifyEvent;
@@ -32,6 +33,7 @@ type
     FOnPaint: TNotifyEvent;
     procedure SetBorderStyle(Value: TFormBorderStyle);
     procedure SetWindowState(Value: TWindowState);
+    procedure SetMenu(Value: TMainMenu);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
     procedure Paint; override;
@@ -49,6 +51,7 @@ type
     procedure Close;
     procedure WndProc(var Message: TMessage); override;
     property Canvas: TCanvas read FCanvas;
+    property Menu: TMainMenu read FMenu write SetMenu;
     property BorderStyle: TFormBorderStyle read FBorderStyle write SetBorderStyle;
     property WindowState: TWindowState read FWindowState write SetWindowState;
     property Position: TFormPosition read FPosition write FPosition;
@@ -175,6 +178,11 @@ var
 begin
   if not HandleAllocated then
     CreateHandle;
+  if (FMenu <> nil) and HandleAllocated then
+  begin
+    WinProcs.SetMenu(FHandle, FMenu.Handle);
+    DrawMenuBar(FHandle);
+  end;
   for I := 0 to FControls.Count - 1 do
   begin
     if TObject(FControls[I]) is TWinControl then
@@ -278,6 +286,22 @@ procedure TForm.DoClose(var Action: TCloseAction);
 begin
   if Assigned(FOnClose) then
     FOnClose(Self, Action);
+end;
+
+procedure TForm.SetMenu(Value: TMainMenu);
+begin
+  if FMenu <> Value then
+  begin
+    FMenu := Value;
+    if HandleAllocated then
+    begin
+      if FMenu <> nil then
+        WinProcs.SetMenu(FHandle, FMenu.Handle)
+      else
+        WinProcs.SetMenu(FHandle, 0);
+      DrawMenuBar(FHandle);
+    end;
+  end;
 end;
 
 procedure TForm.SetBorderStyle(Value: TFormBorderStyle);

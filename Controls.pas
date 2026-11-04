@@ -5,7 +5,7 @@ unit Controls;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, Strings;
+  WinTypes, WinProcs, Classes, Graphics, Strings, Menus;
 
 type
   TModalResult = Integer;
@@ -63,6 +63,7 @@ type
     FColor: TColor;
     FFont: TFont;
     FCursor: TCursor;
+    FPopupMenu: TPopupMenu;
     FOnClick: TNotifyEvent;
     FOnMouseDown: TMouseEvent;
     FOnMouseUp: TMouseEvent;
@@ -94,6 +95,7 @@ type
     property Color: TColor read FColor write FColor;
     property Font: TFont read FFont;
     property Cursor: TCursor read FCursor write FCursor;
+    property PopupMenu: TPopupMenu read FPopupMenu write FPopupMenu;
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
     property OnMouseDown: TMouseEvent read FOnMouseDown write FOnMouseDown;
     property OnMouseUp: TMouseEvent read FOnMouseUp write FOnMouseUp;
@@ -169,7 +171,17 @@ begin
           Ctrl := FindControl(HWND(Loword(ALParam)));
           if (Ctrl <> nil) and (AWParam = BN_CLICKED) then
             Ctrl.Click;
+        end
+        else
+        begin
+          { Komunikat z menu (ID w AWParam) }
+          DispatchMenuCommand(AWParam);
         end;
+      end;
+      WM_RBUTTONUP:
+      begin
+        if (Ctrl.PopupMenu <> nil) and Ctrl.PopupMenu.AutoPopup then
+          Ctrl.PopupMenu.Popup(Loword(ALParam), Hiword(ALParam));
       end;
       WM_LBUTTONUP:
       begin
