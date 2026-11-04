@@ -1,0 +1,6 @@
+*.ppu
+*.a
+*.o
+*.obj
+*.exe
+*.map

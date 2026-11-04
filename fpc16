@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# fpc16 - kompilator FPC dla 16-bitowego trybu chronionego Win16 zoptymalizowany pod i486
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+FPC_BIN="$ROOT_DIR/fpc-source/compiler/ppcross8086"
+RTL_UNITS="$ROOT_DIR/fpc-source/rtl/units/win16"
+WATCOM_BIN="/tmp/watcom/binl64"
+
+if [ ! -d "$WATCOM_BIN" ] && [ -d "/opt/watcom/binl64" ]; then
+    WATCOM_BIN="/opt/watcom/binl64"
+fi
+
+export PATH="$WATCOM_BIN:$PATH"
+
+exec "$FPC_BIN" -Twin16 -Pi8086 -Cp80486 -Op80486 -Wh -Fu"$RTL_UNITS" -Fu"$ROOT_DIR/wuil" "$@"
