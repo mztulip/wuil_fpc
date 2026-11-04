@@ -19,6 +19,9 @@ const
   mrIgnore   = 5;
   mrYes      = 6;
   mrNo       = 7;
+  mrAll      = 8;
+  mrNoToAll  = 9;
+  mrYesToAll = 10;
 
 type
   TCursor = Integer;
@@ -126,6 +129,16 @@ type
     property Handle: HWND read FHandle;
     property Controls[Index: Integer]: TControl read GetControl;
     property ControlCount: Integer read GetControlCount;
+  end;
+
+  TControlCanvas = class(TCanvas)
+  private
+    FControl: TControl;
+    FDeviceContext: HDC;
+    procedure SetControl(Value: TControl);
+  public
+    destructor Destroy; override;
+    property Control: TControl read FControl write SetControl;
   end;
 
 function FindControl(AHwnd: HWND): TWinControl;
@@ -490,6 +503,34 @@ begin
   else
     M.Result := 0;
   TMessage(Message).Result := M.Result;
+end;
+
+{ TControlCanvas }
+
+destructor TControlCanvas.Destroy;
+begin
+  if (FDeviceContext <> 0) and (FControl <> nil) and (FControl is TWinControl) and TWinControl(FControl).HandleAllocated then
+    ReleaseDC(TWinControl(FControl).Handle, FDeviceContext);
+  inherited Destroy;
+end;
+
+procedure TControlCanvas.SetControl(Value: TControl);
+begin
+  if FControl <> Value then
+  begin
+    if (FDeviceContext <> 0) and (FControl <> nil) and (FControl is TWinControl) and TWinControl(FControl).HandleAllocated then
+    begin
+      ReleaseDC(TWinControl(FControl).Handle, FDeviceContext);
+      FDeviceContext := 0;
+      Handle := 0;
+    end;
+    FControl := Value;
+    if (FControl <> nil) and (FControl is TWinControl) and TWinControl(FControl).HandleAllocated then
+    begin
+      FDeviceContext := GetDC(TWinControl(FControl).Handle);
+      Handle := FDeviceContext;
+    end;
+  end;
 end;
 
 initialization
