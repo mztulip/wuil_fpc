@@ -5,7 +5,7 @@ unit Buttons;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, StdCtrls, Messages, Strings;
+  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, StdCtrls, Messages, SysUtils;
 
 type
   TButtonLayout = (blGlyphLeft, blGlyphRight, blGlyphTop, blGlyphBottom);

@@ -5,7 +5,7 @@ unit ExtCtrls;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, Strings;
+  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, SysUtils;
 
 type
   TBevelStyle = (bsLowered, bsRaised);
@@ -135,6 +135,8 @@ type
     property Visible;
     property Enabled;
   end;
+
+procedure Frame3D(Canvas: TCanvas; var Rect: TRect; TopColor, BottomColor: TColor; Width: Integer);
 
 implementation
 
@@ -588,6 +590,26 @@ begin
     FSectionWidths.Add(Pointer(50));
   FSectionWidths[Index] := Pointer(Value);
   Invalidate;
+end;
+
+procedure Frame3D(Canvas: TCanvas; var Rect: TRect; TopColor, BottomColor: TColor; Width: Integer);
+var
+  I: Integer;
+begin
+  for I := 1 to Width do
+  begin
+    Canvas.Pen.Color := TopColor;
+    Canvas.MoveTo(Rect.Left, Rect.Bottom - 1);
+    Canvas.LineTo(Rect.Left, Rect.Top);
+    Canvas.LineTo(Rect.Right - 1, Rect.Top);
+    Canvas.Pen.Color := BottomColor;
+    Canvas.LineTo(Rect.Right - 1, Rect.Bottom - 1);
+    Canvas.LineTo(Rect.Left, Rect.Bottom - 1);
+    Inc(Rect.Left);
+    Inc(Rect.Top);
+    Dec(Rect.Right);
+    Dec(Rect.Bottom);
+  end;
 end;
 
 finalization

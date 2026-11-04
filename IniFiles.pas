@@ -5,7 +5,7 @@ unit IniFiles;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, SysUtils, Strings;
+  WinTypes, WinProcs, Classes, SysUtils;
 
 type
   TIniFile = class(TObject)

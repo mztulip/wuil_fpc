@@ -5,7 +5,7 @@ unit Menus;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, Strings;
+  WinTypes, WinProcs, Classes, Graphics, SysUtils;
 
 const
   TPM_LEFTBUTTON   = $0000;

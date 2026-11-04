@@ -5,7 +5,7 @@ unit Forms;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, Controls, Menus, Strings;
+  WinTypes, WinProcs, Classes, Graphics, Controls, Menus, SysUtils;
 
 type
   TWindowState = (wsNormal, wsMinimized, wsMaximized);

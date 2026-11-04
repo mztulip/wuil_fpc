@@ -5,7 +5,7 @@ unit StdCtrls;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, Strings;
+  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, SysUtils;
 
 const
   ES_READONLY    = $0800;

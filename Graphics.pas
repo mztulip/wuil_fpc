@@ -9,6 +9,8 @@ uses
 
 type
   TColor = LongInt;
+  TRect = WinTypes.RECT;
+  TPoint = WinTypes.POINT;
 
 const
   clBlack       = TColor($00000000);
@@ -58,6 +60,7 @@ type
   TBrushStyle = (bsSolid, bsClear, bsHorizontal, bsVertical, bsFDiagonal, bsBDiagonal, bsCross, bsDiagCross);
 
   TGraphic = class;
+  TBitmap = class;
 
   TFont = class(TPersistent)
   private
@@ -105,13 +108,16 @@ type
     FColor: TColor;
     FStyle: TBrushStyle;
     FHandle: HBRUSH;
+    FBitmap: TBitmap;
     procedure SetColor(Value: TColor);
     procedure SetStyle(Value: TBrushStyle);
+    procedure SetBitmap(Value: TBitmap);
     procedure UpdateBrush;
   public
     constructor Create;
     destructor Destroy; override;
     property Handle: HBRUSH read FHandle;
+    property Bitmap: TBitmap read FBitmap write SetBitmap;
     property Color: TColor read FColor write SetColor;
     property Style: TBrushStyle read FStyle write SetStyle;
   end;
@@ -227,12 +233,53 @@ type
     property Width: Integer read GetWidth;
   end;
 
+const
+  WPF_SETMINPOSITION      = $0001;
+  WPF_RESTORETOMAXIMIZED  = $0002;
+
+type
+  PWindowPlacement = ^TWindowPlacement;
+  tagWINDOWPLACEMENT = record
+    length: UINT;
+    flags: UINT;
+    showCmd: UINT;
+    ptMinPosition: TPoint;
+    ptMaxPosition: TPoint;
+    rcNormalPosition: TRect;
+  end;
+  TWindowPlacement = tagWINDOWPLACEMENT;
+
+function LockWindowUpdate(hwndLock: HWND): BOOL; far; external 'USER' index 294;
+function GetWindowPlacement(hwnd: HWND; lpwndpl: PWindowPlacement): BOOL; far; external 'USER' index 370;
+function SetWindowPlacement(hwnd: HWND; lpwndpl: PWindowPlacement): BOOL; far; external 'USER' index 371;
+
 function RGB(R, G, B: Byte): LongInt;
+function LoadStr(Ident: Word): string;
+function FmtLoadStr(Ident: Word; const Args: array of const): string;
 function ColorToRGB(Color: TColor): LongInt;
 function ColorToString(Color: TColor): string;
 function StringToColor(const S: string): TColor;
+function Point(AX, AY: Integer): TPoint;
+function Rect(ALeft, ATop, ARight, ABottom: Integer): TRect;
+function Bounds(ALeft, ATop, AWidth, AHeight: Integer): TRect;
+function IntersectRect(var Dest: TRect; const Source1, Source2: TRect): SmallInt;
 
 implementation
+
+function LoadStr(Ident: Word): string;
+var
+  Buf: array[0..255] of Char;
+begin
+  if LoadString(HInstance, Ident, Buf, SizeOf(Buf)) > 0 then
+    Result := StrPas(Buf)
+  else
+    Result := '';
+end;
+
+function FmtLoadStr(Ident: Word; const Args: array of const): string;
+begin
+  Result := Format(LoadStr(Ident), Args);
+end;
 
 function RGB(R, G, B: Byte): LongInt;
 begin
@@ -323,6 +370,33 @@ begin
   else if LS = 'clmenutext' then Result := clMenuText
   else
     Result := StrToIntDef(S, clBlack);
+end;
+
+function Point(AX, AY: Integer): TPoint;
+begin
+  Result.X := AX;
+  Result.Y := AY;
+end;
+
+function Rect(ALeft, ATop, ARight, ABottom: Integer): TRect;
+begin
+  Result.Left := ALeft;
+  Result.Top := ATop;
+  Result.Right := ARight;
+  Result.Bottom := ABottom;
+end;
+
+function Bounds(ALeft, ATop, AWidth, AHeight: Integer): TRect;
+begin
+  Result.Left := ALeft;
+  Result.Top := ATop;
+  Result.Right := ALeft + AWidth;
+  Result.Bottom := ATop + AHeight;
+end;
+
+function IntersectRect(var Dest: TRect; const Source1, Source2: TRect): SmallInt;
+begin
+  Result := WinProcs.IntersectRect(@Dest, @Source1, @Source2);
 end;
 
 { TFont }
@@ -467,14 +541,29 @@ begin
   inherited Create;
   FColor := clWhite;
   FStyle := bsSolid;
+  FBitmap := nil;
   UpdateBrush;
 end;
 
 destructor TBrush.Destroy;
 begin
+  FBitmap.Free;
   if FHandle <> 0 then
     DeleteObject(FHandle);
   inherited Destroy;
+end;
+
+procedure TBrush.SetBitmap(Value: TBitmap);
+begin
+  if FBitmap = nil then
+    FBitmap := TBitmap.Create;
+  FBitmap.Assign(Value);
+  if (FBitmap <> nil) and (FBitmap.Handle <> 0) then
+  begin
+    if FHandle <> 0 then
+      DeleteObject(FHandle);
+    FHandle := CreatePatternBrush(FBitmap.Handle);
+  end;
 end;
 
 procedure TBrush.UpdateBrush;

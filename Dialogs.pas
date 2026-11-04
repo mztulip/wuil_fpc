@@ -5,7 +5,7 @@ unit Dialogs;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, SysUtils, Strings;
+  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, SysUtils;
 
 const
   { Stałe flag dla OpenFileName }
@@ -104,6 +104,10 @@ type
   public
     function Execute: Boolean; override;
   end;
+
+var
+  MsgDlgGlyphs: Boolean = False;
+  MsgDlgBtnSize: TPoint = (X: 75; Y: 23);
 
 function GetOpenFileName(var OpenFile: TOpenFileName): Bool; far; external 'COMMDLG' index 1;
 function GetSaveFileName(var OpenFile: TOpenFileName): Bool; far; external 'COMMDLG' index 2;
