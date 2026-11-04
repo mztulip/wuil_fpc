@@ -5,7 +5,7 @@ unit Graphics;
 interface
 
 uses
-  WinTypes, WinProcs, Classes;
+  WinTypes, WinProcs, Win31, Classes, SysUtils;
 
 type
   TColor = LongInt;
@@ -56,6 +56,8 @@ type
 
   TPenStyle = (psSolid, psDash, psDot, psDashDot, psDashDotDot, psClear, psInsideFrame);
   TBrushStyle = (bsSolid, bsClear, bsHorizontal, bsVertical, bsFDiagonal, bsBDiagonal, bsCross, bsDiagCross);
+
+  TGraphic = class;
 
   TFont = class(TPersistent)
   private
@@ -122,6 +124,8 @@ type
     FBrush: TBrush;
     FAutoFreeDC: Boolean;
     procedure SetHandle(Value: HDC);
+    function GetPixel(X, Y: Integer): TColor;
+    procedure SetPixel(X, Y: Integer; Value: TColor);
   public
     constructor Create;
     destructor Destroy; override;
@@ -132,14 +136,101 @@ type
     procedure TextOut(X, Y: Integer; const Text: string);
     function TextWidth(const Text: string): Integer;
     function TextHeight(const Text: string): Integer;
+    procedure Draw(X, Y: Integer; Graphic: TGraphic);
+    procedure CopyRect(const Dest: TRect; Source: TCanvas; const SourceRect: TRect);
+    procedure PolyLine(const Points: array of TPoint);
+    property Pixels[X, Y: Integer]: TColor read GetPixel write SetPixel;
     property Handle: HDC read FHandle write SetHandle;
     property Font: TFont read FFont;
     property Pen: TPen read FPen;
     property Brush: TBrush read FBrush;
   end;
 
+  TGraphic = class(TPersistent)
+  protected
+    function GetEmpty: Boolean; virtual;
+    function GetHeight: Integer; virtual;
+    function GetWidth: Integer; virtual;
+    procedure SetHeight(Value: Integer); virtual;
+    procedure SetWidth(Value: Integer); virtual;
+  public
+    constructor Create; virtual;
+    procedure Draw(ACanvas: TCanvas; const Rect: TRect); virtual; abstract;
+    procedure LoadFromFile(const Filename: string); virtual;
+    procedure SaveToFile(const Filename: string); virtual;
+    property Empty: Boolean read GetEmpty;
+    property Height: Integer read GetHeight write SetHeight;
+    property Width: Integer read GetWidth write SetWidth;
+  end;
+
+  TIcon = class(TGraphic)
+  private
+    FHandle: HICON;
+    function GetHandle: HICON;
+    procedure SetHandle(Value: HICON);
+  protected
+    function GetEmpty: Boolean; override;
+    function GetHeight: Integer; override;
+    function GetWidth: Integer; override;
+  public
+    constructor Create; override;
+    destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
+    procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
+    property Handle: HICON read GetHandle write SetHandle;
+  end;
+
+  TBitmap = class(TGraphic)
+  private
+    FHandle: HBITMAP;
+    FCanvas: TCanvas;
+    FWidth, FHeight: Integer;
+    function GetCanvas: TCanvas;
+    procedure SetHandle(Value: HBITMAP);
+  protected
+    function GetEmpty: Boolean; override;
+    function GetHeight: Integer; override;
+    function GetWidth: Integer; override;
+    procedure SetHeight(Value: Integer); override;
+    procedure SetWidth(Value: Integer); override;
+  public
+    constructor Create; override;
+    destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
+    procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
+    procedure LoadFromResourceName(Instance: THandle; const ResName: string);
+    property Canvas: TCanvas read GetCanvas;
+    property Handle: HBITMAP read FHandle write SetHandle;
+  end;
+
+  TPicture = class(TPersistent)
+  private
+    FGraphic: TGraphic;
+    FBitmap: TBitmap;
+    FIcon: TIcon;
+    function GetBitmap: TBitmap;
+    function GetIcon: TIcon;
+    function GetHeight: Integer;
+    function GetWidth: Integer;
+    procedure SetBitmap(Value: TBitmap);
+    procedure SetIcon(Value: TIcon);
+    procedure SetGraphic(Value: TGraphic);
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
+    procedure LoadFromFile(const Filename: string);
+    property Bitmap: TBitmap read GetBitmap write SetBitmap;
+    property Icon: TIcon read GetIcon write SetIcon;
+    property Graphic: TGraphic read FGraphic write SetGraphic;
+    property Height: Integer read GetHeight;
+    property Width: Integer read GetWidth;
+  end;
+
 function RGB(R, G, B: Byte): LongInt;
 function ColorToRGB(Color: TColor): LongInt;
+function ColorToString(Color: TColor): string;
+function StringToColor(const S: string): TColor;
 
 implementation
 
@@ -154,6 +245,84 @@ begin
     ColorToRGB := GetSysColor(Integer(Color and $000000FF))
   else
     ColorToRGB := Color;
+end;
+
+function ColorToString(Color: TColor): string;
+begin
+  case Color of
+    clBlack:       Result := 'clBlack';
+    clMaroon:      Result := 'clMaroon';
+    clGreen:       Result := 'clGreen';
+    clOlive:       Result := 'clOlive';
+    clNavy:        Result := 'clNavy';
+    clPurple:      Result := 'clPurple';
+    clTeal:        Result := 'clTeal';
+    clGray:        Result := 'clGray';
+    clSilver:      Result := 'clSilver';
+    clRed:         Result := 'clRed';
+    clLime:        Result := 'clLime';
+    clYellow:      Result := 'clYellow';
+    clBlue:        Result := 'clBlue';
+    clFuchsia:     Result := 'clFuchsia';
+    clAqua:        Result := 'clAqua';
+    clWhite:       Result := 'clWhite';
+    clScrollBar:   Result := 'clScrollBar';
+    clBackground:  Result := 'clBackground';
+    clActiveCaption: Result := 'clActiveCaption';
+    clInactiveCaption: Result := 'clInactiveCaption';
+    clMenu:        Result := 'clMenu';
+    clWindow:      Result := 'clWindow';
+    clWindowFrame: Result := 'clWindowFrame';
+    clMenuText:    Result := 'clMenuText';
+    clWindowText:  Result := 'clWindowText';
+    clCaptionText: Result := 'clCaptionText';
+    clActiveBorder: Result := 'clActiveBorder';
+    clInactiveBorder: Result := 'clInactiveBorder';
+    clAppWorkSpace: Result := 'clAppWorkSpace';
+    clHighlight:   Result := 'clHighlight';
+    clHighlightText: Result := 'clHighlightText';
+    clBtnFace:     Result := 'clBtnFace';
+    clBtnShadow:   Result := 'clBtnShadow';
+    clGrayText:    Result := 'clGrayText';
+    clBtnText:     Result := 'clBtnText';
+    clInactiveCaptionText: Result := 'clInactiveCaptionText';
+    clBtnHighlight: Result := 'clBtnHighlight';
+    else Result := '$' + IntToHex(Color, 8);
+  end;
+end;
+
+function StringToColor(const S: string): TColor;
+var
+  LS: string;
+begin
+  LS := Lowercase(S);
+  if LS = 'clblack' then Result := clBlack
+  else if LS = 'clmaroon' then Result := clMaroon
+  else if LS = 'clgreen' then Result := clGreen
+  else if LS = 'clolive' then Result := clOlive
+  else if LS = 'clnavy' then Result := clNavy
+  else if LS = 'clpurple' then Result := clPurple
+  else if LS = 'clteal' then Result := clTeal
+  else if LS = 'clgray' then Result := clGray
+  else if LS = 'clsilver' then Result := clSilver
+  else if LS = 'clred' then Result := clRed
+  else if LS = 'cllime' then Result := clLime
+  else if LS = 'clyellow' then Result := clYellow
+  else if LS = 'clblue' then Result := clBlue
+  else if LS = 'clfuchsia' then Result := clFuchsia
+  else if LS = 'claqua' then Result := clAqua
+  else if LS = 'clwhite' then Result := clWhite
+  else if LS = 'clbtnface' then Result := clBtnFace
+  else if LS = 'clbtnshadow' then Result := clBtnShadow
+  else if LS = 'clbtnhighlight' then Result := clBtnHighlight
+  else if LS = 'clwindow' then Result := clWindow
+  else if LS = 'clwindowtext' then Result := clWindowText
+  else if LS = 'clhighlight' then Result := clHighlight
+  else if LS = 'clhighlighttext' then Result := clHighlightText
+  else if LS = 'clmenu' then Result := clMenu
+  else if LS = 'clmenutext' then Result := clMenuText
+  else
+    Result := StrToIntDef(S, clBlack);
 end;
 
 { TFont }
@@ -188,7 +357,6 @@ begin
     Weight := 700
   else
     Weight := 400;
-  { CreateFont in Win16 }
   FHandle := CreateFont(
     -FSize, 0, 0, 0, Weight,
     Byte(fsItalic in FStyle),
@@ -371,6 +539,20 @@ begin
   end;
 end;
 
+function TCanvas.GetPixel(X, Y: Integer): TColor;
+begin
+  if FHandle <> 0 then
+    Result := WinProcs.GetPixel(FHandle, X, Y)
+  else
+    Result := clBlack;
+end;
+
+procedure TCanvas.SetPixel(X, Y: Integer; Value: TColor);
+begin
+  if FHandle <> 0 then
+    WinProcs.SetPixel(FHandle, X, Y, ColorToRGB(Value));
+end;
+
 procedure TCanvas.MoveTo(X, Y: Integer);
 begin
   if FHandle <> 0 then
@@ -443,6 +625,338 @@ begin
     Extent := GetTextExtent(FHandle, @Text[1], Length(Text));
     Result := Hiword(Extent);
   end;
+end;
+
+procedure TCanvas.Draw(X, Y: Integer; Graphic: TGraphic);
+var
+  R: TRect;
+begin
+  if (FHandle <> 0) and (Graphic <> nil) and not Graphic.Empty then
+  begin
+    R.Left := X;
+    R.Top := Y;
+    R.Right := X + Graphic.Width;
+    R.Bottom := Y + Graphic.Height;
+    Graphic.Draw(Self, R);
+  end;
+end;
+
+procedure TCanvas.CopyRect(const Dest: TRect; Source: TCanvas; const SourceRect: TRect);
+begin
+  if (FHandle <> 0) and (Source <> nil) and (Source.Handle <> 0) then
+  begin
+    BitBlt(FHandle, Dest.Left, Dest.Top,
+      Dest.Right - Dest.Left, Dest.Bottom - Dest.Top,
+      Source.Handle, SourceRect.Left, SourceRect.Top, SRCCOPY);
+  end;
+end;
+
+procedure TCanvas.PolyLine(const Points: array of TPoint);
+var
+  I: Integer;
+begin
+  if (FHandle <> 0) and (High(Points) >= 1) then
+  begin
+    SelectObject(FHandle, FPen.Handle);
+    WinProcs.MoveTo(FHandle, Points[0].X, Points[0].Y);
+    for I := 1 to High(Points) do
+      WinProcs.LineTo(FHandle, Points[I].X, Points[I].Y);
+  end;
+end;
+
+{ TGraphic }
+
+constructor TGraphic.Create;
+begin
+  inherited Create;
+end;
+
+function TGraphic.GetEmpty: Boolean;
+begin
+  Result := True;
+end;
+
+function TGraphic.GetHeight: Integer;
+begin
+  Result := 0;
+end;
+
+function TGraphic.GetWidth: Integer;
+begin
+  Result := 0;
+end;
+
+procedure TGraphic.SetHeight(Value: Integer);
+begin
+end;
+
+procedure TGraphic.SetWidth(Value: Integer);
+begin
+end;
+
+procedure TGraphic.LoadFromFile(const Filename: string);
+begin
+end;
+
+procedure TGraphic.SaveToFile(const Filename: string);
+begin
+end;
+
+{ TIcon }
+
+constructor TIcon.Create;
+begin
+  inherited Create;
+  FHandle := 0;
+end;
+
+destructor TIcon.Destroy;
+begin
+  if FHandle <> 0 then
+    DestroyIcon(FHandle);
+  inherited Destroy;
+end;
+
+function TIcon.GetEmpty: Boolean;
+begin
+  Result := FHandle = 0;
+end;
+
+function TIcon.GetHeight: Integer;
+begin
+  Result := 32;
+end;
+
+function TIcon.GetWidth: Integer;
+begin
+  Result := 32;
+end;
+
+function TIcon.GetHandle: HICON;
+begin
+  Result := FHandle;
+end;
+
+procedure TIcon.SetHandle(Value: HICON);
+begin
+  if FHandle <> Value then
+  begin
+    if FHandle <> 0 then
+      DestroyIcon(FHandle);
+    FHandle := Value;
+  end;
+end;
+
+procedure TIcon.Assign(Source: TPersistent);
+begin
+  if Source is TIcon then
+    SetHandle(CopyIcon(HInstance, TIcon(Source).Handle))
+  else
+    inherited Assign(Source);
+end;
+
+procedure TIcon.Draw(ACanvas: TCanvas; const Rect: TRect);
+begin
+  if (ACanvas <> nil) and (ACanvas.Handle <> 0) and (FHandle <> 0) then
+    DrawIcon(ACanvas.Handle, Rect.Left, Rect.Top, FHandle);
+end;
+
+{ TBitmap }
+
+constructor TBitmap.Create;
+begin
+  inherited Create;
+  FHandle := 0;
+  FWidth := 0;
+  FHeight := 0;
+  FCanvas := nil;
+end;
+
+destructor TBitmap.Destroy;
+begin
+  FCanvas.Free;
+  if FHandle <> 0 then
+    DeleteObject(FHandle);
+  inherited Destroy;
+end;
+
+function TBitmap.GetEmpty: Boolean;
+begin
+  Result := FHandle = 0;
+end;
+
+function TBitmap.GetHeight: Integer;
+begin
+  Result := FHeight;
+end;
+
+function TBitmap.GetWidth: Integer;
+begin
+  Result := FWidth;
+end;
+
+procedure TBitmap.SetHeight(Value: Integer);
+begin
+  FHeight := Value;
+end;
+
+procedure TBitmap.SetWidth(Value: Integer);
+begin
+  FWidth := Value;
+end;
+
+procedure TBitmap.SetHandle(Value: HBITMAP);
+var
+  BM: BITMAP;
+begin
+  if FHandle <> Value then
+  begin
+    if FHandle <> 0 then
+      DeleteObject(FHandle);
+    FHandle := Value;
+    if FHandle <> 0 then
+    begin
+      GetObject(FHandle, SizeOf(BITMAP), @BM);
+      FWidth := BM.bmWidth;
+      FHeight := BM.bmHeight;
+    end
+    else
+    begin
+      FWidth := 0;
+      FHeight := 0;
+    end;
+  end;
+end;
+
+function TBitmap.GetCanvas: TCanvas;
+var
+  DC: HDC;
+begin
+  if FCanvas = nil then
+  begin
+    FCanvas := TCanvas.Create;
+    DC := CreateCompatibleDC(0);
+    FCanvas.Handle := DC;
+    if FHandle <> 0 then
+      SelectObject(DC, FHandle);
+  end;
+  Result := FCanvas;
+end;
+
+procedure TBitmap.Assign(Source: TPersistent);
+begin
+  if Source is TBitmap then
+  begin
+    SetWidth(TBitmap(Source).Width);
+    SetHeight(TBitmap(Source).Height);
+    { Kopiowanie uchwytu lub danych }
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure TBitmap.Draw(ACanvas: TCanvas; const Rect: TRect);
+var
+  MemDC: HDC;
+  OldBmp: HBITMAP;
+begin
+  if (ACanvas <> nil) and (ACanvas.Handle <> 0) and (FHandle <> 0) then
+  begin
+    MemDC := CreateCompatibleDC(ACanvas.Handle);
+    OldBmp := SelectObject(MemDC, FHandle);
+    BitBlt(ACanvas.Handle, Rect.Left, Rect.Top, FWidth, FHeight, MemDC, 0, 0, SRCCOPY);
+    SelectObject(MemDC, OldBmp);
+    DeleteDC(MemDC);
+  end;
+end;
+
+procedure TBitmap.LoadFromResourceName(Instance: THandle; const ResName: string);
+begin
+  SetHandle(LoadBitmap(Instance, PChar(ResName)));
+end;
+
+{ TPicture }
+
+constructor TPicture.Create;
+begin
+  inherited Create;
+  FBitmap := TBitmap.Create;
+  FIcon := TIcon.Create;
+  FGraphic := nil;
+end;
+
+destructor TPicture.Destroy;
+begin
+  FBitmap.Free;
+  FIcon.Free;
+  inherited Destroy;
+end;
+
+function TPicture.GetBitmap: TBitmap;
+begin
+  FGraphic := FBitmap;
+  Result := FBitmap;
+end;
+
+function TPicture.GetIcon: TIcon;
+begin
+  FGraphic := FIcon;
+  Result := FIcon;
+end;
+
+procedure TPicture.SetBitmap(Value: TBitmap);
+begin
+  FBitmap.Assign(Value);
+  FGraphic := FBitmap;
+end;
+
+procedure TPicture.SetIcon(Value: TIcon);
+begin
+  FIcon.Assign(Value);
+  FGraphic := FIcon;
+end;
+
+procedure TPicture.SetGraphic(Value: TGraphic);
+begin
+  FGraphic := Value;
+end;
+
+function TPicture.GetWidth: Integer;
+begin
+  if FGraphic <> nil then
+    Result := FGraphic.Width
+  else
+    Result := 0;
+end;
+
+function TPicture.GetHeight: Integer;
+begin
+  if FGraphic <> nil then
+    Result := FGraphic.Height
+  else
+    Result := 0;
+end;
+
+procedure TPicture.Assign(Source: TPersistent);
+begin
+  if Source is TPicture then
+  begin
+    if TPicture(Source).Graphic is TIcon then
+      Icon.Assign(TPicture(Source).Icon)
+    else if TPicture(Source).Graphic is TBitmap then
+      Bitmap.Assign(TPicture(Source).Bitmap);
+  end
+  else if Source is TIcon then
+    Icon.Assign(Source)
+  else if Source is TBitmap then
+    Bitmap.Assign(Source)
+  else
+    inherited Assign(Source);
+end;
+
+procedure TPicture.LoadFromFile(const Filename: string);
+begin
+  { Opcjonalne ładowanie z pliku }
 end;
 
 end.
