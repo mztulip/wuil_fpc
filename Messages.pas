@@ -229,6 +229,142 @@ type
     Result: LongInt;
   end;
 
+  TWMNoParams = record
+    Msg: Word;
+    Unused: Word;
+    Unused2: Longint;
+    Result: Longint;
+  end;
+
+  TWMGetDlgCode = TWMNoParams;
+  TWMQueryOpen = TWMNoParams;
+  TWMSysColorChange = TWMNoParams;
+
+  TWMEnable = record
+    Msg: Word;
+    Enabled: WordBool;
+    Unused: Longint;
+    Result: Longint;
+  end;
+
+  TWMSize = record
+    Msg: Word;
+    SizeType: Word;
+    Width: Word;
+    Height: Word;
+    Result: Longint;
+  end;
+
+  TWMMove = record
+    Msg: Word;
+    Unused: Word;
+    XPos: Integer;
+    YPos: Integer;
+    Result: Longint;
+  end;
+
+  TWMPaint = record
+    Msg: Word;
+    DC: HDC;
+    Unused: Longint;
+    Result: Longint;
+  end;
+
+  TWMGetMinMaxInfo = record
+    Msg: Word;
+    Unused: Word;
+    MinMaxInfo: PMINMAXINFO;
+    Result: Longint;
+  end;
+
+  TWMSysCommand = record
+    Msg: Word;
+    CmdType: Word;
+    XPos: SmallInt;
+    YPos: SmallInt;
+    Result: Longint;
+  end;
+
+  TWMMouseActivate = record
+    Msg: Word;
+    TopLevel: HWND;
+    HitTestCode: Word;
+    MouseMsg: Word;
+    Result: Longint;
+  end;
+
+  TWMNCMouse = record
+    Msg: Word;
+    HitTest: Word;
+    XCursor: SmallInt;
+    YCursor: SmallInt;
+    Result: Longint;
+  end;
+  TWMNCRButtonDown = TWMNCMouse;
+  TWMNCLButtonDown = TWMNCMouse;
+
+  TWMLButtonDown = TWMMouse;
+  TWMLButtonUp = TWMMouse;
+  TWMLButtonDblClk = TWMMouse;
+  TWMRButtonDown = TWMMouse;
+  TWMRButtonUp = TWMMouse;
+  TWMRButtonDblClk = TWMMouse;
+  TWMMouseMove = TWMMouse;
+
+  TWMActivate = record
+    Msg: Word;
+    Active: Word;
+    Minimized: WordBool;
+    ActiveWindow: HWND;
+    Result: Longint;
+  end;
+
+  TWMDropFiles = record
+    Msg: Word;
+    Drop: Word;
+    Unused: Longint;
+    Result: Longint;
+  end;
+
+  TWMDrawItem = record
+    Msg: Word;
+    Ctl: HWND;
+    DrawItemStruct: PDRAWITEMSTRUCT;
+    Result: Longint;
+  end;
+
+  TWMMeasureItem = record
+    Msg: Word;
+    Ctl: HWND;
+    MeasureItemStruct: PMEASUREITEMSTRUCT;
+    Result: Longint;
+  end;
+
+  TWMScroll = record
+    Msg: Word;
+    ScrollCode: SmallInt;
+    Pos: SmallInt;
+    ScrollBar: HWND;
+    Result: Longint;
+  end;
+  TWMVScroll = TWMScroll;
+  TWMHScroll = TWMScroll;
+
+  TCMFocusChanged = record
+    Msg: Word;
+    Unused: Word;
+    Sender: TObject;
+    Result: Longint;
+  end;
+
+function Point(AX, AY: Integer): TPoint;
+
 implementation
+
+function Point(AX, AY: Integer): TPoint;
+begin
+  Result.X := AX;
+  Result.Y := AY;
+end;
 
 end.

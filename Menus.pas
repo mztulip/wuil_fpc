@@ -5,7 +5,7 @@ unit Menus;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, SysUtils;
+  WinTypes, WinProcs, Classes, Graphics, SysUtils, Messages;
 
 const
   TPM_LEFTBUTTON   = $0000;
@@ -81,11 +81,18 @@ type
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
   end;
 
+  TFindItemKind = (fkCommand, fkHandle, fkShortCut);
+
   TMenu = class(TComponent)
   protected
     FItems: TMenuItem;
     FWindowHandle: HWND;
     function GetHandle: HMENU; virtual;
+    procedure WndProc(var Message: TMessage); virtual;
+    function DispatchCommand(ACommand: Word): Boolean;
+    function DispatchPopup(AHandle: HMENU): Boolean;
+    function FindItem(Value: Word; Kind: TFindItemKind): TMenuItem;
+    function IsAccel(VK: Word; const Str: string): Boolean;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -129,6 +136,7 @@ function TextToShortCut(const Text: string): TShortCut;
 
 function FindMenuItem(CommandId: Word): TMenuItem;
 procedure DispatchMenuCommand(CommandId: Word);
+function IsAccel(VK: Word; const Str: string): Boolean;
 
 implementation
 
@@ -460,6 +468,80 @@ end;
 function TMenu.GetHandle: HMENU;
 begin
   Result := FItems.Handle;
+end;
+
+function FindInItem(Item: TMenuItem; Value: Word; Kind: TFindItemKind): TMenuItem;
+var
+  I: Integer;
+  Res: TMenuItem;
+begin
+  Result := nil;
+  if Item = nil then Exit;
+  case Kind of
+    fkCommand: if Item.Command = Value then begin Result := Item; Exit; end;
+    fkHandle: if Item.Handle = HMENU(Value) then begin Result := Item; Exit; end;
+    fkShortCut: if Item.ShortCut = Value then begin Result := Item; Exit; end;
+  end;
+  for I := 0 to Item.Count - 1 do
+  begin
+    Res := FindInItem(Item[I], Value, Kind);
+    if Res <> nil then begin Result := Res; Exit; end;
+  end;
+end;
+
+function TMenu.FindItem(Value: Word; Kind: TFindItemKind): TMenuItem;
+begin
+  Result := FindInItem(FItems, Value, Kind);
+end;
+
+function TMenu.DispatchCommand(ACommand: Word): Boolean;
+var
+  Item: TMenuItem;
+begin
+  Item := FindItem(ACommand, fkCommand);
+  if Item <> nil then
+  begin
+    Item.Click;
+    Result := True;
+  end
+  else
+    Result := False;
+end;
+
+function TMenu.DispatchPopup(AHandle: HMENU): Boolean;
+begin
+  Result := False;
+end;
+
+procedure TMenu.WndProc(var Message: TMessage);
+begin
+  case Message.Msg of
+    WM_COMMAND:
+      DispatchCommand(Message.WParam);
+    WM_INITMENUPOPUP:
+      DispatchPopup(Message.WParam);
+  end;
+end;
+
+function IsAccel(VK: Word; const Str: string): Boolean;
+var
+  P: Integer;
+  Ch: Char;
+begin
+  Result := False;
+  P := Pos('&', Str);
+  if (P > 0) and (P < Length(Str)) then
+    Ch := UpCase(Str[P + 1])
+  else if Length(Str) > 0 then
+    Ch := UpCase(Str[1])
+  else
+    Exit;
+  Result := (Word(Ch) = VK) or (Word(UpCase(Ch)) = VK);
+end;
+
+function TMenu.IsAccel(VK: Word; const Str: string): Boolean;
+begin
+  Result := Menus.IsAccel(VK, Str);
 end;
 
 { TMainMenu }

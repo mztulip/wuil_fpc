@@ -10,6 +10,7 @@ uses
 type
   TButtonLayout = (blGlyphLeft, blGlyphRight, blGlyphTop, blGlyphBottom);
   TButtonState = (bsUp, bsDisabled, bsDown, bsExclusive);
+  TButtonStyle = (bsAutoDetect, bsWin31, bsNew);
   TBitBtnKind = (bkCustom, bkOK, bkCancel, bkHelp, bkYes, bkNo, bkClose, bkAbort, bkRetry, bkIgnore, bkAll);
 
   TSpeedButton = class(TControl)
@@ -24,6 +25,7 @@ type
     FMargin: Integer;
     FNumGlyphs: Integer;
     FState: TButtonState;
+    FStyle: TButtonStyle;
     FCanvas: TCanvas;
     procedure SetDown(Value: Boolean);
     procedure SetGroupIndex(Value: Integer);
@@ -44,6 +46,7 @@ type
     property AllowAllUp: Boolean read FAllowAllUp write SetAllowAllUp default False;
     property GroupIndex: Integer read FGroupIndex write SetGroupIndex default 0;
     property Down: Boolean read FDown write SetDown default False;
+    property Style: TButtonStyle read FStyle write FStyle default bsAutoDetect;
     property Caption;
     property Enabled;
     property Font;
@@ -67,6 +70,7 @@ type
     FLayout: TButtonLayout;
     FMargin: Integer;
     FSpacing: Integer;
+    FStyle: TButtonStyle;
     FModalResult: TModalResult;
     FDefault: Boolean;
     FCancel: Boolean;
@@ -77,6 +81,7 @@ type
     destructor Destroy; override;
     procedure Click; override;
   published
+    property Style: TButtonStyle read FStyle write FStyle default bsAutoDetect;
     property Kind: TBitBtnKind read FKind write SetKind default bkCustom;
     property Glyph: TBitmap read FGlyph write SetGlyph;
     property NumGlyphs: Integer read FNumGlyphs write FNumGlyphs default 1;

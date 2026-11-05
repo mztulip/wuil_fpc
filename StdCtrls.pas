@@ -120,45 +120,105 @@ type
     property Visible;
   end;
 
-  TEdit = class(TWinControl)
+  TCustomEdit = class(TWinControl)
   private
     FReadOnly: Boolean;
     FMaxLength: Integer;
     FAutoSelect: Boolean;
+    FPasswordChar: Char;
+    FBorderStyle: TBorderStyle;
     FOnChange: TNotifyEvent;
     function GetText: string;
     procedure SetText(const Value: string);
     procedure SetReadOnly(Value: Boolean);
+    procedure SetPasswordChar(Value: Char);
+    function GetSelStart: Integer;
+    procedure SetSelStart(Value: Integer);
+    function GetSelLength: Integer;
+    procedure SetSelLength(Value: Integer);
+    function GetSelText: string;
+    procedure SetSelText(const Value: string);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
     procedure Change; virtual;
+    property AutoSelect: Boolean read FAutoSelect write FAutoSelect default True;
+    property BorderStyle: TBorderStyle read FBorderStyle write FBorderStyle default bsSingle;
+    property MaxLength: Integer read FMaxLength write FMaxLength default 0;
+    property PasswordChar: Char read FPasswordChar write SetPasswordChar default #0;
+    property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
   public
     constructor Create(AOwner: TComponent); override;
     procedure Clear;
     procedure SelectAll;
     property Text: string read GetText write SetText;
-  published
-    property AutoSelect: Boolean read FAutoSelect write FAutoSelect default True;
-    property MaxLength: Integer read FMaxLength write FMaxLength default 0;
-    property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
-    property Enabled;
-    property Visible;
-    property Font;
-    property OnClick;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+    property SelLength: Integer read GetSelLength write SetSelLength;
+    property SelStart: Integer read GetSelStart write SetSelStart;
+    property SelText: string read GetSelText write SetSelText;
   end;
 
-  TListBox = class;
+  TEdit = class(TCustomEdit)
+  published
+    property AutoSelect;
+    property BorderStyle;
+    property Color;
+    property Ctl3D;
+    property DragCursor;
+    property DragMode;
+    property Enabled;
+    property Font;
+    property MaxLength;
+    property ParentColor;
+    property ParentCtl3D;
+    property ParentFont;
+    property ParentShowHint;
+    property PasswordChar;
+    property PopupMenu;
+    property ReadOnly;
+    property ShowHint;
+    property TabOrder;
+    property TabStop;
+    property Text;
+    property Visible;
+    property OnChange;
+    property OnClick;
+    property OnDblClick;
+    property OnDragDrop;
+    property OnDragOver;
+    property OnEndDrag;
+    property OnEnter;
+    property OnExit;
+    property OnKeyDown;
+    property OnKeyPress;
+    property OnKeyUp;
+    property OnMouseDown;
+    property OnMouseMove;
+    property OnMouseUp;
+  end;
+
+  TOwnerDrawState = set of (odSelected, odGrayed, odDisabled, odChecked,
+    odFocused, odDefault);
+
+  TDrawItemEvent = procedure(Control: TWinControl; Index: Integer;
+    Rect: TRect; State: TOwnerDrawState) of object;
+  TMeasureItemEvent = procedure(Control: TWinControl; Index: Integer;
+    var Height: Integer) of object;
+
+  TListBoxStyle = (lbStandard, lbOwnerDrawFixed, lbOwnerDrawVariable);
+
+  TCustomListBox = class;
 
   TListBoxStrings = class(TStrings)
   private
-    FListBox: TListBox;
+    FListBox: TCustomListBox;
     FBuffer: TStringList;
   protected
     function Get(Index: Integer): string; override;
     function GetCount: Integer; override;
+    function GetObject(Index: Integer): TObject; override;
+    procedure PutObject(Index: Integer; AObject: TObject); override;
   public
-    constructor Create(AListBox: TListBox);
+    constructor Create(AListBox: TCustomListBox);
     destructor Destroy; override;
     procedure Clear; override;
     procedure Delete(Index: Integer); override;
@@ -166,58 +226,113 @@ type
     procedure SyncToHandle;
   end;
 
-  TListBox = class(TWinControl)
+  TCustomListBox = class(TWinControl)
   private
     FItems: TStrings;
+    FCanvas: TCanvas;
+    FStyle: TListBoxStyle;
+    FItemHeight: Integer;
+    FBorderStyle: TBorderStyle;
     FMultiSelect: Boolean;
     FExtendedSelect: Boolean;
     FSorted: Boolean;
     FIntegralHeight: Boolean;
     FColumns: Integer;
     FOnDblClick: TNotifyEvent;
+    FOnDrawItem: TDrawItemEvent;
+    FOnMeasureItem: TMeasureItemEvent;
     function GetItemIndex: Integer;
     procedure SetItemIndex(Value: Integer);
     function GetSelected(Index: Integer): Boolean;
     procedure SetSelected(Index: Integer; Value: Boolean);
     function GetTopIndex: Integer;
     procedure SetTopIndex(Value: Integer);
+    function GetSelCount: Integer;
     procedure SetItems(Value: TStrings);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
     procedure CreateWindowHandle(const Params: TCreateParams); override;
     procedure DblClick; virtual;
+    procedure DrawItem(Index: Integer; Rect: TRect; State: TOwnerDrawState); virtual;
+    procedure MeasureItem(Index: Integer; var Height: Integer); virtual;
+    property BorderStyle: TBorderStyle read FBorderStyle write FBorderStyle default bsSingle;
+    property Columns: Integer read FColumns write FColumns default 0;
+    property ExtendedSelect: Boolean read FExtendedSelect write FExtendedSelect default True;
+    property IntegralHeight: Boolean read FIntegralHeight write FIntegralHeight default True;
+    property ItemHeight: Integer read FItemHeight write FItemHeight default 16;
+    property MultiSelect: Boolean read FMultiSelect write FMultiSelect default False;
+    property Sorted: Boolean read FSorted write FSorted default False;
+    property Style: TListBoxStyle read FStyle write FStyle default lbStandard;
+    property OnDrawItem: TDrawItemEvent read FOnDrawItem write FOnDrawItem;
+    property OnMeasureItem: TMeasureItemEvent read FOnMeasureItem write FOnMeasureItem;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure Clear;
-    property Selected[Index: Integer]: Boolean read GetSelected write SetSelected;
-  published
+    function ItemAtPos(Pos: TPoint; Existing: Boolean): Integer;
+    property Canvas: TCanvas read FCanvas;
     property Items: TStrings read FItems write SetItems;
     property ItemIndex: Integer read GetItemIndex write SetItemIndex default -1;
-    property MultiSelect: Boolean read FMultiSelect write FMultiSelect default False;
-    property ExtendedSelect: Boolean read FExtendedSelect write FExtendedSelect default True;
-    property Sorted: Boolean read FSorted write FSorted default False;
+    property SelCount: Integer read GetSelCount;
+    property Selected[Index: Integer]: Boolean read GetSelected write SetSelected;
     property TopIndex: Integer read GetTopIndex write SetTopIndex;
-    property Columns: Integer read FColumns write FColumns default 0;
-    property IntegralHeight: Boolean read FIntegralHeight write FIntegralHeight default True;
+  end;
+
+  TListBox = class(TCustomListBox)
+  published
+    property Align;
+    property BorderStyle;
+    property Color;
+    property Columns;
+    property Ctl3D;
+    property DragCursor;
+    property DragMode;
     property Enabled;
+    property ExtendedSelect;
     property Font;
+    property IntegralHeight;
+    property ItemHeight;
+    property Items;
+    property MultiSelect;
+    property ParentColor;
+    property ParentCtl3D;
+    property ParentFont;
+    property ParentShowHint;
+    property PopupMenu;
+    property ShowHint;
+    property Sorted;
+    property Style;
+    property TabOrder;
+    property TabStop;
     property Visible;
     property OnClick;
     property OnDblClick: TNotifyEvent read FOnDblClick write FOnDblClick;
+    property OnDragDrop;
+    property OnDragOver;
+    property OnDrawItem;
+    property OnEndDrag;
+    property OnEnter;
+    property OnExit;
+    property OnKeyDown;
+    property OnKeyPress;
+    property OnKeyUp;
+    property OnMouseDown;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnMeasureItem;
   end;
 
-  TComboBox = class;
+  TCustomComboBox = class;
 
   TComboBoxStrings = class(TStrings)
   private
-    FComboBox: TComboBox;
+    FComboBox: TCustomComboBox;
     FBuffer: TStringList;
   protected
     function Get(Index: Integer): string; override;
     function GetCount: Integer; override;
   public
-    constructor Create(AComboBox: TComboBox);
+    constructor Create(AComboBox: TCustomComboBox);
     destructor Destroy; override;
     procedure Clear; override;
     procedure Delete(Index: Integer); override;
@@ -225,38 +340,88 @@ type
     procedure SyncToHandle;
   end;
 
-  TComboBox = class(TWinControl)
+  TCustomComboBox = class(TWinControl)
   private
     FItems: TStrings;
     FStyle: TComboBoxStyle;
     FSorted: Boolean;
     FDropDownCount: Integer;
+    FItemHeight: Integer;
+    FMaxLength: Integer;
     FOnChange: TNotifyEvent;
+    FOnDropDown: TNotifyEvent;
+    FOnDrawItem: TDrawItemEvent;
+    FOnMeasureItem: TMeasureItemEvent;
     function GetItemIndex: Integer;
     procedure SetItemIndex(Value: Integer);
     function GetText: string;
     procedure SetText(const Value: string);
     procedure SetItems(Value: TStrings);
+    procedure SetItemHeight(Value: Integer);
+    procedure SetMaxLength(Value: Integer);
+    procedure SetStyle(Value: TComboBoxStyle);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
     procedure CreateWindowHandle(const Params: TCreateParams); override;
     procedure Change; virtual;
+    procedure MeasureItem(Index: Integer; var Height: Integer); virtual;
+    procedure DrawItem(Index: Integer; Rect: TRect; State: TOwnerDrawState); virtual;
+    property Style: TComboBoxStyle read FStyle write SetStyle default csDropDown;
+    property Sorted: Boolean read FSorted write FSorted default False;
+    property DropDownCount: Integer read FDropDownCount write FDropDownCount default 8;
+    property ItemHeight: Integer read FItemHeight write SetItemHeight;
+    property MaxLength: Integer read FMaxLength write SetMaxLength default 0;
+    property Items: TStrings read FItems write SetItems;
+    property ItemIndex: Integer read GetItemIndex write SetItemIndex default -1;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+    property OnDropDown: TNotifyEvent read FOnDropDown write FOnDropDown;
+    property OnDrawItem: TDrawItemEvent read FOnDrawItem write FOnDrawItem;
+    property OnMeasureItem: TMeasureItemEvent read FOnMeasureItem write FOnMeasureItem;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure Clear;
     property Text: string read GetText write SetText;
+  end;
+
+  TComboBox = class(TCustomComboBox)
   published
-    property Items: TStrings read FItems write SetItems;
-    property ItemIndex: Integer read GetItemIndex write SetItemIndex default -1;
-    property Style: TComboBoxStyle read FStyle write FStyle default csDropDown;
-    property Sorted: Boolean read FSorted write FSorted default False;
-    property DropDownCount: Integer read FDropDownCount write FDropDownCount default 8;
+    property Style;
+    property Color;
+    property Ctl3D;
+    property DragMode;
+    property DragCursor;
+    property DropDownCount;
     property Enabled;
     property Font;
+    property ItemHeight;
+    property Items;
+    property ItemIndex;
+    property MaxLength;
+    property ParentColor;
+    property ParentCtl3D;
+    property ParentFont;
+    property ParentShowHint;
+    property PopupMenu;
+    property ShowHint;
+    property Sorted;
+    property TabOrder;
+    property TabStop;
+    property Text;
     property Visible;
+    property OnChange;
     property OnClick;
-    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+    property OnDblClick;
+    property OnDragDrop;
+    property OnDragOver;
+    property OnDrawItem;
+    property OnEndDrag;
+    property OnEnter;
+    property OnExit;
+    property OnKeyDown;
+    property OnKeyPress;
+    property OnKeyUp;
+    property OnMeasureItem;
   end;
 
   TMemo = class(TWinControl)
@@ -546,9 +711,9 @@ begin
   { Malowane przez Windows API BS_GROUPBOX }
 end;
 
-{ TEdit }
+{ TCustomEdit }
 
-constructor TEdit.Create(AOwner: TComponent);
+constructor TCustomEdit.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FWidth := 121;
@@ -557,9 +722,11 @@ begin
   FReadOnly := False;
   FMaxLength := 0;
   FAutoSelect := True;
+  FBorderStyle := bsSingle;
+  FPasswordChar := #0;
 end;
 
-procedure TEdit.CreateParams(var Params: TCreateParams);
+procedure TCustomEdit.CreateParams(var Params: TCreateParams);
 begin
   inherited CreateParams(Params);
   FillChar(Params.WinClassName, SizeOf(Params.WinClassName), 0);
@@ -569,7 +736,7 @@ begin
     Params.Style := Params.Style or ES_READONLY;
 end;
 
-function TEdit.GetText: string;
+function TCustomEdit.GetText: string;
 var
   Len: Integer;
   Buf: array[0..255] of Char;
@@ -585,14 +752,14 @@ begin
     Result := FCaption;
 end;
 
-procedure TEdit.SetText(const Value: string);
+procedure TCustomEdit.SetText(const Value: string);
 begin
   FCaption := Value;
   if HandleAllocated then
     SetWindowText(FHandle, PChar(Value));
 end;
 
-procedure TEdit.SetReadOnly(Value: Boolean);
+procedure TCustomEdit.SetReadOnly(Value: Boolean);
 begin
   if FReadOnly <> Value then
   begin
@@ -602,26 +769,100 @@ begin
   end;
 end;
 
-procedure TEdit.Clear;
+procedure TCustomEdit.SetPasswordChar(Value: Char);
+begin
+  if FPasswordChar <> Value then
+  begin
+    FPasswordChar := Value;
+    if HandleAllocated then
+      SendMessage(FHandle, EM_SETPASSWORDCHAR, Ord(Value), 0);
+  end;
+end;
+
+procedure TCustomEdit.Clear;
 begin
   SetText('');
 end;
 
-procedure TEdit.SelectAll;
+procedure TCustomEdit.SelectAll;
 begin
   if HandleAllocated then
     SendMessage(FHandle, EM_SETSEL, 0, MakeLong(0, $FFFF));
 end;
 
-procedure TEdit.Change;
+procedure TCustomEdit.Change;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
 end;
 
+function TCustomEdit.GetSelStart: Integer;
+var
+  L: LongInt;
+begin
+  if HandleAllocated then
+  begin
+    L := SendMessage(FHandle, EM_GETSEL, 0, 0);
+    Result := LoWord(L);
+  end
+  else
+    Result := 0;
+end;
+
+procedure TCustomEdit.SetSelStart(Value: Integer);
+begin
+  if HandleAllocated then
+    SendMessage(FHandle, EM_SETSEL, 0, MakeLong(Value, Value));
+end;
+
+function TCustomEdit.GetSelLength: Integer;
+var
+  L: LongInt;
+begin
+  if HandleAllocated then
+  begin
+    L := SendMessage(FHandle, EM_GETSEL, 0, 0);
+    Result := HiWord(L) - LoWord(L);
+  end
+  else
+    Result := 0;
+end;
+
+procedure TCustomEdit.SetSelLength(Value: Integer);
+begin
+  if HandleAllocated then
+    SendMessage(FHandle, EM_SETSEL, 0, MakeLong(GetSelStart, GetSelStart + Value));
+end;
+
+function TCustomEdit.GetSelText: string;
+var
+  StartPos, EndPos: Integer;
+  Res: LongInt;
+  S: string;
+begin
+  Result := '';
+  if HandleAllocated then
+  begin
+    Res := SendMessage(FHandle, EM_GETSEL, 0, 0);
+    StartPos := LoWord(Res);
+    EndPos := HiWord(Res);
+    if EndPos > StartPos then
+    begin
+      S := GetText;
+      Result := Copy(S, StartPos + 1, EndPos - StartPos);
+    end;
+  end;
+end;
+
+procedure TCustomEdit.SetSelText(const Value: string);
+begin
+  if HandleAllocated then
+    SendMessage(FHandle, EM_REPLACESEL, 0, LongInt(PChar(Value)));
+end;
+
 { TListBoxStrings }
 
-constructor TListBoxStrings.Create(AListBox: TListBox);
+constructor TListBoxStrings.Create(AListBox: TCustomListBox);
 begin
   inherited Create;
   FListBox := AListBox;
@@ -659,6 +900,24 @@ begin
     Result := FBuffer[Index];
 end;
 
+function TListBoxStrings.GetObject(Index: Integer): TObject;
+begin
+  if (FListBox <> nil) and FListBox.HandleAllocated then
+    Result := TObject(SendMessage(FListBox.Handle, LB_GETITEMDATA, Index, 0))
+  else if (Index >= 0) and (Index < FBuffer.Count) then
+    Result := FBuffer.Objects[Index]
+  else
+    Result := nil;
+end;
+
+procedure TListBoxStrings.PutObject(Index: Integer; AObject: TObject);
+begin
+  if (FListBox <> nil) and FListBox.HandleAllocated then
+    SendMessage(FListBox.Handle, LB_SETITEMDATA, Index, LongInt(AObject));
+  if (Index >= 0) and (Index < FBuffer.Count) then
+    FBuffer.Objects[Index] := AObject;
+end;
+
 procedure TListBoxStrings.Clear;
 begin
   if (FListBox <> nil) and FListBox.HandleAllocated then
@@ -689,18 +948,26 @@ begin
   begin
     SendMessage(FListBox.Handle, LB_RESETCONTENT, 0, 0);
     for I := 0 to FBuffer.Count - 1 do
+    begin
       SendMessage(FListBox.Handle, LB_ADDSTRING, 0, LongInt(PChar(FBuffer[I])));
+      SendMessage(FListBox.Handle, LB_SETITEMDATA, I, LongInt(FBuffer.Objects[I]));
+    end;
   end;
 end;
 
-{ TListBox }
+{ TCustomListBox }
 
-constructor TListBox.Create(AOwner: TComponent);
+constructor TCustomListBox.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FItems := TListBoxStrings.Create(Self);
+  FCanvas := TControlCanvas.Create;
+  TControlCanvas(FCanvas).Control := Self;
   FWidth := 121;
   FHeight := 97;
+  FStyle := lbStandard;
+  FItemHeight := 16;
+  FBorderStyle := bsSingle;
   FMultiSelect := False;
   FExtendedSelect := True;
   FSorted := False;
@@ -708,13 +975,14 @@ begin
   FColumns := 0;
 end;
 
-destructor TListBox.Destroy;
+destructor TCustomListBox.Destroy;
 begin
   FItems.Free;
+  FCanvas.Free;
   inherited Destroy;
 end;
 
-procedure TListBox.CreateParams(var Params: TCreateParams);
+procedure TCustomListBox.CreateParams(var Params: TCreateParams);
 begin
   inherited CreateParams(Params);
   FillChar(Params.WinClassName, SizeOf(Params.WinClassName), 0);
@@ -729,21 +997,43 @@ begin
     else
       Params.Style := Params.Style or LBS_MULTIPLESEL;
   end;
+  if not FIntegralHeight then
+    Params.Style := Params.Style or LBS_NOINTEGRALHEIGHT;
+  if FColumns > 0 then
+    Params.Style := Params.Style or LBS_MULTICOLUMN;
+  case FStyle of
+    lbOwnerDrawFixed:
+      Params.Style := Params.Style or LBS_OWNERDRAWFIXED;
+    lbOwnerDrawVariable:
+      Params.Style := Params.Style or LBS_OWNERDRAWVARIABLE;
+  end;
 end;
 
-procedure TListBox.CreateWindowHandle(const Params: TCreateParams);
+procedure TCustomListBox.CreateWindowHandle(const Params: TCreateParams);
 begin
   inherited CreateWindowHandle(Params);
   if FItems is TListBoxStrings then
     TListBoxStrings(FItems).SyncToHandle;
 end;
 
-procedure TListBox.Clear;
+procedure TCustomListBox.DrawItem(Index: Integer; Rect: TRect; State: TOwnerDrawState);
+begin
+  if Assigned(FOnDrawItem) then
+    FOnDrawItem(Self, Index, Rect, State);
+end;
+
+procedure TCustomListBox.MeasureItem(Index: Integer; var Height: Integer);
+begin
+  if Assigned(FOnMeasureItem) then
+    FOnMeasureItem(Self, Index, Height);
+end;
+
+procedure TCustomListBox.Clear;
 begin
   FItems.Clear;
 end;
 
-function TListBox.GetItemIndex: Integer;
+function TCustomListBox.GetItemIndex: Integer;
 begin
   if HandleAllocated then
     Result := SendMessage(FHandle, LB_GETCURSEL, 0, 0)
@@ -751,13 +1041,13 @@ begin
     Result := -1;
 end;
 
-procedure TListBox.SetItemIndex(Value: Integer);
+procedure TCustomListBox.SetItemIndex(Value: Integer);
 begin
   if HandleAllocated then
     SendMessage(FHandle, LB_SETCURSEL, Value, 0);
 end;
 
-function TListBox.GetSelected(Index: Integer): Boolean;
+function TCustomListBox.GetSelected(Index: Integer): Boolean;
 begin
   if HandleAllocated then
     Result := SendMessage(FHandle, LB_GETSEL, Index, 0) > 0
@@ -765,7 +1055,7 @@ begin
     Result := False;
 end;
 
-procedure TListBox.SetSelected(Index: Integer; Value: Boolean);
+procedure TCustomListBox.SetSelected(Index: Integer; Value: Boolean);
 var
   Flag: Word;
 begin
@@ -776,7 +1066,7 @@ begin
   end;
 end;
 
-function TListBox.GetTopIndex: Integer;
+function TCustomListBox.GetTopIndex: Integer;
 begin
   if HandleAllocated then
     Result := SendMessage(FHandle, LB_GETTOPINDEX, 0, 0)
@@ -784,18 +1074,63 @@ begin
     Result := 0;
 end;
 
-procedure TListBox.SetTopIndex(Value: Integer);
+procedure TCustomListBox.SetTopIndex(Value: Integer);
 begin
   if HandleAllocated then
     SendMessage(FHandle, LB_SETTOPINDEX, Value, 0);
 end;
 
-procedure TListBox.SetItems(Value: TStrings);
+function TCustomListBox.GetSelCount: Integer;
+begin
+  if MultiSelect then
+  begin
+    if HandleAllocated then
+      Result := SendMessage(FHandle, LB_GETSELCOUNT, 0, 0)
+    else
+      Result := 0;
+  end
+  else
+  begin
+    if ItemIndex <> -1 then
+      Result := 1
+    else
+      Result := 0;
+  end;
+end;
+
+function TCustomListBox.ItemAtPos(Pos: TPoint; Existing: Boolean): Integer;
+var
+  I, TopIdx, Cnt: Integer;
+  R: TRect;
+begin
+  Result := -1;
+  if not HandleAllocated then Exit;
+  Cnt := Items.Count;
+  TopIdx := SendMessage(FHandle, LB_GETTOPINDEX, 0, 0);
+  for I := TopIdx to Cnt - 1 do
+  begin
+    if SendMessage(FHandle, LB_GETITEMRECT, I, Longint(@R)) = LB_ERR then Break;
+    if PtInRect(R, Pos) then
+    begin
+      Result := I;
+      Exit;
+    end;
+    if Pos.Y < R.Top then Exit;
+  end;
+  if (not Existing) and (Cnt > 0) then
+  begin
+    R := ClientRect;
+    if PtInRect(R, Pos) then
+      Result := Cnt;
+  end;
+end;
+
+procedure TCustomListBox.SetItems(Value: TStrings);
 begin
   FItems.Assign(Value);
 end;
 
-procedure TListBox.DblClick;
+procedure TCustomListBox.DblClick;
 begin
   if Assigned(FOnDblClick) then
     FOnDblClick(Self);
@@ -803,7 +1138,7 @@ end;
 
 { TComboBoxStrings }
 
-constructor TComboBoxStrings.Create(AComboBox: TComboBox);
+constructor TComboBoxStrings.Create(AComboBox: TCustomComboBox);
 begin
   inherited Create;
   FComboBox := AComboBox;
@@ -875,9 +1210,9 @@ begin
   end;
 end;
 
-{ TComboBox }
+{ TCustomComboBox }
 
-constructor TComboBox.Create(AOwner: TComponent);
+constructor TCustomComboBox.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FItems := TComboBoxStrings.Create(Self);
@@ -886,43 +1221,47 @@ begin
   FStyle := csDropDown;
   FSorted := False;
   FDropDownCount := 8;
+  FItemHeight := 16;
+  FMaxLength := 0;
 end;
 
-destructor TComboBox.Destroy;
+destructor TCustomComboBox.Destroy;
 begin
   FItems.Free;
   inherited Destroy;
 end;
 
-procedure TComboBox.CreateParams(var Params: TCreateParams);
+procedure TCustomComboBox.CreateParams(var Params: TCreateParams);
 begin
   inherited CreateParams(Params);
   FillChar(Params.WinClassName, SizeOf(Params.WinClassName), 0);
   StrCopy(Params.WinClassName, 'COMBOBOX');
   Params.Style := WS_CHILD or WS_VISIBLE or WS_VSCROLL or WS_TABSTOP or CBS_AUTOHSCROLL;
   case FStyle of
-    csSimple:       Params.Style := Params.Style or CBS_SIMPLE;
-    csDropDownList: Params.Style := Params.Style or CBS_DROPDOWNLIST;
-    else            Params.Style := Params.Style or CBS_DROPDOWN;
+    csSimple:           Params.Style := Params.Style or CBS_SIMPLE;
+    csDropDownList:     Params.Style := Params.Style or CBS_DROPDOWNLIST;
+    csOwnerDrawFixed:   Params.Style := Params.Style or CBS_DROPDOWNLIST or CBS_OWNERDRAWFIXED;
+    csOwnerDrawVariable:Params.Style := Params.Style or CBS_DROPDOWNLIST or CBS_OWNERDRAWVARIABLE;
+    else                Params.Style := Params.Style or CBS_DROPDOWN;
   end;
   if FSorted then
     Params.Style := Params.Style or CBS_SORT;
 end;
 
-procedure TComboBox.CreateWindowHandle(const Params: TCreateParams);
+procedure TCustomComboBox.CreateWindowHandle(const Params: TCreateParams);
 begin
   inherited CreateWindowHandle(Params);
   if FItems is TComboBoxStrings then
     TComboBoxStrings(FItems).SyncToHandle;
 end;
 
-procedure TComboBox.Clear;
+procedure TCustomComboBox.Clear;
 begin
   FItems.Clear;
   SetText('');
 end;
 
-function TComboBox.GetItemIndex: Integer;
+function TCustomComboBox.GetItemIndex: Integer;
 begin
   if HandleAllocated then
     Result := SendMessage(FHandle, CB_GETCURSEL, 0, 0)
@@ -930,13 +1269,13 @@ begin
     Result := -1;
 end;
 
-procedure TComboBox.SetItemIndex(Value: Integer);
+procedure TCustomComboBox.SetItemIndex(Value: Integer);
 begin
   if HandleAllocated then
     SendMessage(FHandle, CB_SETCURSEL, Value, 0);
 end;
 
-function TComboBox.GetText: string;
+function TCustomComboBox.GetText: string;
 var
   Len: Integer;
   Buf: array[0..255] of Char;
@@ -952,22 +1291,62 @@ begin
     Result := FCaption;
 end;
 
-procedure TComboBox.SetText(const Value: string);
+procedure TCustomComboBox.SetText(const Value: string);
 begin
   FCaption := Value;
   if HandleAllocated then
     SetWindowText(FHandle, PChar(Value));
 end;
 
-procedure TComboBox.SetItems(Value: TStrings);
+procedure TCustomComboBox.SetItems(Value: TStrings);
 begin
   FItems.Assign(Value);
 end;
 
-procedure TComboBox.Change;
+procedure TCustomComboBox.SetItemHeight(Value: Integer);
+begin
+  if FItemHeight <> Value then
+  begin
+    FItemHeight := Value;
+    if HandleAllocated then
+      SendMessage(FHandle, $0153 {CB_SETITEMHEIGHT}, 0, Value);
+  end;
+end;
+
+procedure TCustomComboBox.SetMaxLength(Value: Integer);
+begin
+  if FMaxLength <> Value then
+  begin
+    FMaxLength := Value;
+    if HandleAllocated then
+      SendMessage(FHandle, $0141 {CB_LIMITTEXT}, Value, 0);
+  end;
+end;
+
+procedure TCustomComboBox.SetStyle(Value: TComboBoxStyle);
+begin
+  if FStyle <> Value then
+  begin
+    FStyle := Value;
+  end;
+end;
+
+procedure TCustomComboBox.Change;
 begin
   if Assigned(FOnChange) then
     FOnChange(Self);
+end;
+
+procedure TCustomComboBox.MeasureItem(Index: Integer; var Height: Integer);
+begin
+  if Assigned(FOnMeasureItem) then
+    FOnMeasureItem(Self, Index, Height);
+end;
+
+procedure TCustomComboBox.DrawItem(Index: Integer; Rect: TRect; State: TOwnerDrawState);
+begin
+  if Assigned(FOnDrawItem) then
+    FOnDrawItem(Self, Index, Rect, State);
 end;
 
 { TMemo }

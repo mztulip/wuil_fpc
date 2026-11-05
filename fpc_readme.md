@@ -83,5 +83,21 @@ Biblioteka pełni rolę **obiektowego wrappera na Win16 API**:
    * `TApplication` – globalny obiekt aplikacji (`Application`) zarządzający pętlą komunikatów (`Run`, `ProcessMessage`).
    * `TForm` – bazowa klasa okna formularza.
 4. **`Graphics.pas` / `StdCtrls.pas`:**
-   * Opakowanie `HDC`, pędzli i piór (`TCanvas`, `TFont`, `TColor`).
-   * Podstawowe kontrolki: `TButton`, `TLabel`, `TPanel`.
+   * Opakowanie `HDC`, pędzli i piór (`TCanvas`, `TFont`, `TColor`, `TPen`, `TBrush`, `TBitmap`, `TIcon`).
+   * Podstawowe kontrolki: `TButton`, `TLabel`, `TPanel`, `TListBox`, `TComboBox`, `TMemo`, `TCheckBox`, `TRadioButton`.
+5. **Moduły zaawansowane WUIL:**
+   * `Menus.pas` (`TMainMenu`, `TPopupMenu`, `TMenuItem`),
+   * `Dialogs.pas` (`ShowMessage`, `MessageDlg`, `TOpenDialog`, `TSaveDialog`),
+   * `ExtCtrls.pas` (`TPanel`, `TTimer`, `TImage`, `TBevel`, `TRadioGroup`),
+   * `Buttons.pas` (`TSpeedButton`, `TBitBtn`),
+   * `IniFiles.pas` (`TIniFile`),
+   * `Grids.pas` (`TDrawGrid`, `TStringGrid`),
+   * `ShellAPI.pas`, `Ver.pas`, `Outline.pas`, `Tabs.pas`, `TabNotBk.pas`, `Spin.pas`, `DdeMan.pas`.
+
+---
+
+## Postęp kompilacji Calmiry (Stan na 2026-11-05)
+
+Praktycznie wszystkie 80+ modułów Calmiry kompiluje się już w 100% czysto pod FPC i486-win16 bez żadnych modyfikacji źródeł Calmiry!
+W module `ALIAS.PAS` kompilator zatrzymuje się na metodach `TStreamer`/`TIcon` (`LoadFromStream`/`SaveToStream`), co stanowi kolejny krok do zakończenia etapu kompilacji i przejścia do linkowania binarki `CALMIRA.EXE`.
+

@@ -8,6 +8,9 @@ uses
   WinTypes, WinProcs, Classes, SysUtils;
 
 type
+  TPoint = WinTypes.TPoint;
+  TRect = WinTypes.TRect;
+
   TIniFile = class(TObject)
   private
     FFileName: string;
@@ -29,7 +32,15 @@ type
     property FileName: string read FFileName;
   end;
 
+function Point(AX, AY: Integer): TPoint;
+
 implementation
+
+function Point(AX, AY: Integer): TPoint;
+begin
+  Result.X := AX;
+  Result.Y := AY;
+end;
 
 constructor TIniFile.Create(const AFileName: string);
 begin

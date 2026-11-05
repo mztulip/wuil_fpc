@@ -5,7 +5,7 @@ unit Dialogs;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, SysUtils;
+  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, SysUtils, Buttons;
 
 const
   { Stałe flag dla OpenFileName }
@@ -106,6 +106,9 @@ type
   end;
 
 var
+  MsgDlgMinWidth: Integer = 0;
+  MsgDlgMinHeight: Integer = 0;
+  MsgDlgButtonStyle: TButtonStyle = bsAutoDetect;
   MsgDlgGlyphs: Boolean = False;
   MsgDlgBtnSize: TPoint = (X: 75; Y: 23);
 
@@ -118,8 +121,13 @@ function MessageDlg(const Msg: string; DlgType: TMsgDlgType;
   Buttons: TMsgDlgButtons; HelpCtx: Longint): Word;
 function MessageDlgPos(const Msg: string; DlgType: TMsgDlgType;
   Buttons: TMsgDlgButtons; HelpCtx: Longint; X, Y: Integer): Word;
+function InputBox(const ACaption, APrompt, ADefault: string): string;
+function InputQuery(const ACaption, APrompt: string; var Value: OpenString): Boolean;
 
 implementation
+
+uses
+  StdCtrls;
 
 procedure ShowMessage(const Msg: string);
 var
@@ -365,6 +373,62 @@ begin
     FFiles.Add(FFileName);
     FFilterIndex := OFN.nFilterIndex;
   end;
+end;
+
+function InputQuery(const ACaption, APrompt: string; var Value: OpenString): Boolean;
+var
+  Form: TForm;
+  Prompt: TLabel;
+  Edit: TEdit;
+  BtnOK, BtnCancel: TButton;
+begin
+  Form := TForm.CreateNew(Application);
+  try
+    Form.Caption := ACaption;
+    Form.ClientWidth := 300;
+    Form.ClientHeight := 105;
+    Form.Position := poScreenCenter;
+    Form.BorderStyle := bsDialog;
+
+    Prompt := TLabel.Create(Form);
+    Prompt.Parent := Form;
+    Prompt.Caption := APrompt;
+    Prompt.SetBounds(10, 10, 280, 16);
+
+    Edit := TEdit.Create(Form);
+    Edit.Parent := Form;
+    Edit.Text := Value;
+    Edit.SetBounds(10, 30, 280, 22);
+
+    BtnOK := TButton.Create(Form);
+    BtnOK.Parent := Form;
+    BtnOK.Caption := 'OK';
+    BtnOK.ModalResult := mrOk;
+    BtnOK.Default := True;
+    BtnOK.SetBounds(130, 65, 75, 23);
+
+    BtnCancel := TButton.Create(Form);
+    BtnCancel.Parent := Form;
+    BtnCancel.Caption := 'Cancel';
+    BtnCancel.ModalResult := mrCancel;
+    BtnCancel.Cancel := True;
+    BtnCancel.SetBounds(215, 65, 75, 23);
+
+    Result := Form.ShowModal = mrOk;
+    if Result then
+      Value := Edit.Text;
+  finally
+    Form.Free;
+  end;
+end;
+
+function InputBox(const ACaption, APrompt, ADefault: string): string;
+var
+  S: ShortString;
+begin
+  S := ADefault;
+  InputQuery(ACaption, APrompt, S);
+  Result := S;
 end;
 
 end.

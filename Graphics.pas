@@ -51,6 +51,10 @@ const
   clBtnText             = TColor($80000012);
   clInactiveCaptionText = TColor($80000013);
   clBtnHighlight        = TColor($80000014);
+  cl3DDkShadow          = TColor($80000015);
+  cl3DLight             = TColor($80000016);
+  clInfoText            = TColor($80000017);
+  clInfoBk              = TColor($80000018);
 
 type
   TFontStyle = (fsBold, fsItalic, fsUnderline, fsStrikeOut);
@@ -58,6 +62,7 @@ type
 
   TPenStyle = (psSolid, psDash, psDot, psDashDot, psDashDotDot, psClear, psInsideFrame);
   TBrushStyle = (bsSolid, bsClear, bsHorizontal, bsVertical, bsFDiagonal, bsBDiagonal, bsCross, bsDiagCross);
+  TFillStyle = (fsSurface, fsBorder);
 
   TGraphic = class;
   TBitmap = class;
@@ -66,20 +71,25 @@ type
   private
     FName: string;
     FSize: Integer;
+    FHeight: Integer;
     FColor: TColor;
     FStyle: TFontStyles;
     FHandle: HFONT;
     procedure SetName(const Value: string);
     procedure SetSize(Value: Integer);
+    function GetHeight: Integer;
+    procedure SetHeight(Value: Integer);
     procedure SetColor(Value: TColor);
     procedure SetStyle(Value: TFontStyles);
     procedure UpdateFont;
   public
     constructor Create;
     destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
     property Handle: HFONT read FHandle;
     property Name: string read FName write SetName;
     property Size: Integer read FSize write SetSize;
+    property Height: Integer read GetHeight write SetHeight;
     property Color: TColor read FColor write SetColor;
     property Style: TFontStyles read FStyle write SetStyle;
   end;
@@ -97,6 +107,7 @@ type
   public
     constructor Create;
     destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
     property Handle: HPEN read FHandle;
     property Color: TColor read FColor write SetColor;
     property Width: Integer read FWidth write SetWidth;
@@ -116,6 +127,7 @@ type
   public
     constructor Create;
     destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
     property Handle: HBRUSH read FHandle;
     property Bitmap: TBitmap read FBitmap write SetBitmap;
     property Color: TColor read FColor write SetColor;
@@ -129,17 +141,28 @@ type
     FPen: TPen;
     FBrush: TBrush;
     FAutoFreeDC: Boolean;
+    FPenPos: TPoint;
     procedure SetHandle(Value: HDC);
     function GetPixel(X, Y: Integer): TColor;
     procedure SetPixel(X, Y: Integer; Value: TColor);
+    function GetPenPos: TPoint;
+    procedure SetPenPos(const Value: TPoint);
   public
     constructor Create;
     destructor Destroy; override;
     procedure MoveTo(X, Y: Integer);
     procedure LineTo(X, Y: Integer);
     procedure Rectangle(X1, Y1, X2, Y2: Integer);
+    procedure RoundRect(X1, Y1, X2, Y2, X3, Y3: Integer);
+    procedure Ellipse(X1, Y1, X2, Y2: Integer);
+    procedure Arc(X1, Y1, X2, Y2, X3, Y3, X4, Y4: Integer);
+    procedure Chord(X1, Y1, X2, Y2, X3, Y3, X4, Y4: Integer);
+    procedure Pie(X1, Y1, X2, Y2, X3, Y3, X4, Y4: Integer);
+    procedure FloodFill(X, Y: Integer; Color: TColor; FillStyle: TFillStyle);
     procedure FillRect(const Rect: TRect);
+    procedure DrawFocusRect(const Rect: TRect);
     procedure TextOut(X, Y: Integer; const Text: string);
+    procedure TextRect(Rect: TRect; X, Y: Integer; const Text: string);
     function TextWidth(const Text: string): Integer;
     function TextHeight(const Text: string): Integer;
     procedure Draw(X, Y: Integer; Graphic: TGraphic);
@@ -150,6 +173,7 @@ type
     property Font: TFont read FFont;
     property Pen: TPen read FPen;
     property Brush: TBrush read FBrush;
+    property PenPos: TPoint read GetPenPos write SetPenPos;
   end;
 
   TGraphic = class(TPersistent)
@@ -204,9 +228,12 @@ type
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
     procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
+    procedure FreeImage;
     procedure LoadFromResourceName(Instance: THandle; const ResName: string);
     property Canvas: TCanvas read GetCanvas;
     property Handle: HBITMAP read FHandle write SetHandle;
+    property Height: Integer read GetHeight write SetHeight;
+    property Width: Integer read GetWidth write SetWidth;
   end;
 
   TPicture = class(TPersistent)
@@ -259,6 +286,8 @@ function FmtLoadStr(Ident: Word; const Args: array of const): string;
 function ColorToRGB(Color: TColor): LongInt;
 function ColorToString(Color: TColor): string;
 function StringToColor(const S: string): TColor;
+function ColorToIdent(Color: Longint; var Ident: OpenString): Boolean;
+function IdentToColor(const Ident: string; var Color: Longint): Boolean;
 function Point(AX, AY: Integer): TPoint;
 function Rect(ALeft, ATop, ARight, ABottom: Integer): TRect;
 function Bounds(ALeft, ATop, AWidth, AHeight: Integer): TRect;
@@ -372,6 +401,33 @@ begin
     Result := StrToIntDef(S, clBlack);
 end;
 
+function ColorToIdent(Color: Longint; var Ident: OpenString): Boolean;
+var
+  S: string;
+begin
+  S := ColorToString(TColor(Color));
+  if (Length(S) > 0) and (S[1] <> '$') then
+  begin
+    Ident := S;
+    Result := True;
+  end
+  else
+    Result := False;
+end;
+
+function IdentToColor(const Ident: string; var Color: Longint): Boolean;
+var
+  S: string;
+begin
+  Result := False;
+  if Length(Ident) < 3 then Exit;
+  if (Ident[1] = '$') or (Ident[1] in ['0'..'9', '+', '-']) then Exit;
+  Color := StringToColor(Ident);
+  S := ColorToString(TColor(Color));
+  if CompareText(S, Ident) = 0 then
+    Result := True;
+end;
+
 function Point(AX, AY: Integer): TPoint;
 begin
   Result.X := AX;
@@ -406,6 +462,7 @@ begin
   inherited Create;
   FName := 'System';
   FSize := 10;
+  FHeight := -13;
   FColor := clWindowText;
   FStyle := [];
   FHandle := 0;
@@ -416,6 +473,21 @@ begin
   if FHandle <> 0 then
     DeleteObject(FHandle);
   inherited Destroy;
+end;
+
+procedure TFont.Assign(Source: TPersistent);
+begin
+  if Source is TFont then
+  begin
+    FName := TFont(Source).FName;
+    FSize := TFont(Source).FSize;
+    FHeight := TFont(Source).FHeight;
+    FColor := TFont(Source).FColor;
+    FStyle := TFont(Source).FStyle;
+    UpdateFont;
+  end
+  else
+    inherited Assign(Source);
 end;
 
 procedure TFont.UpdateFont;
@@ -451,11 +523,33 @@ begin
   end;
 end;
 
+function TFont.GetHeight: Integer;
+begin
+  if FHeight <> 0 then
+    Result := FHeight
+  else
+    Result := -MulDiv(FSize, 96, 72);
+end;
+
+procedure TFont.SetHeight(Value: Integer);
+begin
+  if FHeight <> Value then
+  begin
+    FHeight := Value;
+    if Value < 0 then
+      FSize := -MulDiv(Value, 72, 96)
+    else
+      FSize := MulDiv(Value, 72, 96);
+    UpdateFont;
+  end;
+end;
+
 procedure TFont.SetSize(Value: Integer);
 begin
   if FSize <> Value then
   begin
     FSize := Value;
+    FHeight := -MulDiv(Value, 96, 72);
     UpdateFont;
   end;
 end;
@@ -490,6 +584,19 @@ begin
   if FHandle <> 0 then
     DeleteObject(FHandle);
   inherited Destroy;
+end;
+
+procedure TPen.Assign(Source: TPersistent);
+begin
+  if Source is TPen then
+  begin
+    FColor := TPen(Source).FColor;
+    FWidth := TPen(Source).FWidth;
+    FStyle := TPen(Source).FStyle;
+    UpdatePen;
+  end
+  else
+    inherited Assign(Source);
 end;
 
 procedure TPen.UpdatePen;
@@ -551,6 +658,18 @@ begin
   if FHandle <> 0 then
     DeleteObject(FHandle);
   inherited Destroy;
+end;
+
+procedure TBrush.Assign(Source: TPersistent);
+begin
+  if Source is TBrush then
+  begin
+    FColor := TBrush(Source).FColor;
+    FStyle := TBrush(Source).FStyle;
+    UpdateBrush;
+  end
+  else
+    inherited Assign(Source);
 end;
 
 procedure TBrush.SetBitmap(Value: TBitmap);
@@ -642,14 +761,38 @@ begin
     WinProcs.SetPixel(FHandle, X, Y, ColorToRGB(Value));
 end;
 
+function TCanvas.GetPenPos: TPoint;
+var
+  Pt: WinTypes.POINT;
+begin
+  if FHandle <> 0 then
+  begin
+    GetCurrentPositionEx(FHandle, @Pt);
+    Result.X := Pt.x;
+    Result.Y := Pt.y;
+    FPenPos := Result;
+  end
+  else
+    Result := FPenPos;
+end;
+
+procedure TCanvas.SetPenPos(const Value: TPoint);
+begin
+  MoveTo(Value.X, Value.Y);
+end;
+
 procedure TCanvas.MoveTo(X, Y: Integer);
 begin
+  FPenPos.X := X;
+  FPenPos.Y := Y;
   if FHandle <> 0 then
     WinProcs.MoveTo(FHandle, X, Y);
 end;
 
 procedure TCanvas.LineTo(X, Y: Integer);
 begin
+  FPenPos.X := X;
+  FPenPos.Y := Y;
   if FHandle <> 0 then
   begin
     SelectObject(FHandle, FPen.Handle);
@@ -667,13 +810,79 @@ begin
   end;
 end;
 
+procedure TCanvas.RoundRect(X1, Y1, X2, Y2, X3, Y3: Integer);
+begin
+  if FHandle <> 0 then
+  begin
+    SelectObject(FHandle, FPen.Handle);
+    SelectObject(FHandle, FBrush.Handle);
+    WinProcs.RoundRect(FHandle, X1, Y1, X2, Y2, X3, Y3);
+  end;
+end;
+
+procedure TCanvas.Ellipse(X1, Y1, X2, Y2: Integer);
+begin
+  if FHandle <> 0 then
+  begin
+    SelectObject(FHandle, FPen.Handle);
+    SelectObject(FHandle, FBrush.Handle);
+    WinProcs.Ellipse(FHandle, X1, Y1, X2, Y2);
+  end;
+end;
+
+procedure TCanvas.Arc(X1, Y1, X2, Y2, X3, Y3, X4, Y4: Integer);
+begin
+  if FHandle <> 0 then
+  begin
+    SelectObject(FHandle, FPen.Handle);
+    WinProcs.Arc(FHandle, X1, Y1, X2, Y2, X3, Y3, X4, Y4);
+  end;
+end;
+
+procedure TCanvas.Chord(X1, Y1, X2, Y2, X3, Y3, X4, Y4: Integer);
+begin
+  if FHandle <> 0 then
+  begin
+    SelectObject(FHandle, FPen.Handle);
+    SelectObject(FHandle, FBrush.Handle);
+    WinProcs.Chord(FHandle, X1, Y1, X2, Y2, X3, Y3, X4, Y4);
+  end;
+end;
+
+procedure TCanvas.Pie(X1, Y1, X2, Y2, X3, Y3, X4, Y4: Integer);
+begin
+  if FHandle <> 0 then
+  begin
+    SelectObject(FHandle, FPen.Handle);
+    SelectObject(FHandle, FBrush.Handle);
+    WinProcs.Pie(FHandle, X1, Y1, X2, Y2, X3, Y3, X4, Y4);
+  end;
+end;
+
+procedure TCanvas.FloodFill(X, Y: Integer; Color: TColor; FillStyle: TFillStyle);
+const
+  FillStyles: array[TFillStyle] of Word = (FLOODFILLSURFACE, FLOODFILLBORDER);
+begin
+  if FHandle <> 0 then
+  begin
+    SelectObject(FHandle, FBrush.Handle);
+    ExtFloodFill(FHandle, X, Y, ColorToRGB(Color), FillStyles[FillStyle]);
+  end;
+end;
+
 procedure TCanvas.FillRect(const Rect: TRect);
 begin
   if FHandle <> 0 then
   begin
     SelectObject(FHandle, FBrush.Handle);
-    WinProcs.FillRect(FHandle, @Rect, FBrush.Handle);
+    WinProcs.FillRect(FHandle, Rect, FBrush.Handle);
   end;
+end;
+
+procedure TCanvas.DrawFocusRect(const Rect: TRect);
+begin
+  if FHandle <> 0 then
+    WinProcs.DrawFocusRect(FHandle, Rect);
 end;
 
 procedure TCanvas.TextOut(X, Y: Integer; const Text: string);
@@ -685,6 +894,18 @@ begin
     if FFont.Handle <> 0 then
       SelectObject(FHandle, FFont.Handle);
     WinProcs.TextOut(FHandle, X, Y, @Text[1], Length(Text));
+  end;
+end;
+
+procedure TCanvas.TextRect(Rect: TRect; X, Y: Integer; const Text: string);
+begin
+  if (FHandle <> 0) and (Length(Text) > 0) then
+  begin
+    SetTextColor(FHandle, ColorToRGB(FFont.Color));
+    SetBkMode(FHandle, TRANSPARENT);
+    if FFont.Handle <> 0 then
+      SelectObject(FHandle, FFont.Handle);
+    ExtTextOut(FHandle, X, Y, ETO_CLIPPED, @Rect, @Text[1], Length(Text), nil);
   end;
 end;
 
@@ -872,6 +1093,15 @@ end;
 function TBitmap.GetEmpty: Boolean;
 begin
   Result := FHandle = 0;
+end;
+
+procedure TBitmap.FreeImage;
+begin
+  if FHandle <> 0 then
+  begin
+    DeleteObject(FHandle);
+    FHandle := 0;
+  end;
 end;
 
 function TBitmap.GetHeight: Integer;

@@ -5,10 +5,11 @@ unit Controls;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, SysUtils, Menus;
+  WinTypes, WinProcs, Classes, Graphics, SysUtils, Menus, Messages;
 
 type
   TModalResult = Integer;
+  THelpContext = Longint;
 
 const
   mrNone     = 0;
@@ -23,7 +24,32 @@ const
   mrNoToAll  = 9;
   mrYesToAll = 10;
 
+const
+  crDefault     =  0;
+  crNone        = -1;
+  crArrow       = -2;
+  crCross       = -3;
+  crIBeam       = -4;
+  crSize        = -5;
+  crSizeNESW    = -6;
+  crSizeNS      = -7;
+  crSizeNWSE    = -8;
+  crSizeWE      = -9;
+  crUpArrow     = -10;
+  crHourGlass   = -11;
+  crDrag        = -12;
+  crNoDrop      = -13;
+  crHSplit      = -14;
+  crVSplit      = -15;
+  crMultiDrag   = -16;
+  crSQLWait     = -17;
+  crNo          = -18;
+  crAppStart    = -19;
+  crHelp        = -20;
+
 type
+  TPoint = WinTypes.TPoint;
+  TRect = WinTypes.TRect;
   TCaption = string;
   TCursor = Integer;
   TMouseButton = (mbLeft, mbRight, mbMiddle);
@@ -42,13 +68,10 @@ type
   TEndDragEvent = procedure(Sender, Target: TObject; X, Y: Integer) of object;
   TTabOrder = Integer;
   TAlign = (alNone, alTop, alBottom, alLeft, alRight, alClient);
-
-  TMessage = record
-    Msg: Word;
-    WParam: Word;
-    LParam: LongInt;
-    Result: LongInt;
-  end;
+  TControlStyle = set of (csAcceptsControls, csCaptureMouse, csDesignInteractive,
+    csClickEvents, csFramed, csSetCaption, csOpaque, csDoubleClicks,
+    csFixedWidth, csFixedHeight, csNoDesignVisible, csReplicatable,
+    csNoStdEvents, csDisplayDragImage, csReflector);
 
   TCreateParams = record
     Caption: PChar;
@@ -78,6 +101,7 @@ type
     FPopupMenu: TPopupMenu;
     FOnClick: TNotifyEvent;
     FOnDblClick: TNotifyEvent;
+    FOnResize: TNotifyEvent;
     FOnMouseDown: TMouseEvent;
     FOnMouseUp: TMouseEvent;
     FOnMouseMove: TMouseMoveEvent;
@@ -90,8 +114,12 @@ type
     FParentFont: Boolean;
     FParentShowHint: Boolean;
     FShowHint: Boolean;
+    FHint: string;
     FDragCursor: TCursor;
     FDragMode: TDragMode;
+    FControlStyle: TControlStyle;
+    FHelpContext: THelpContext;
+    FDragging: Boolean;
     FOnDragDrop: TDragDropEvent;
     FOnDragOver: TDragOverEvent;
     FOnEndDrag: TEndDragEvent;
@@ -103,12 +131,14 @@ type
     procedure SetVisible(Value: Boolean);
     procedure SetEnabled(Value: Boolean);
     procedure SetCaption(const Value: string);
+    procedure SetFont(Value: TFont);
     procedure SetParent(AParent: TWinControl); virtual;
     function GetBoundsRect: TRect;
     procedure SetBoundsRect(const Value: TRect);
     function GetClientRect: TRect; virtual;
     function GetClientOrigin: TPoint; virtual;
     procedure Click; virtual;
+    procedure DblClick; virtual;
     procedure Paint; virtual;
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); virtual;
     procedure MouseMove(Shift: TShiftState; X, Y: Integer); virtual;
@@ -116,10 +146,18 @@ type
     procedure KeyDown(var Key: Word; Shift: TShiftState); virtual;
     procedure KeyUp(var Key: Word; Shift: TShiftState); virtual;
     procedure KeyPress(var Key: Char); virtual;
+    procedure Resize; virtual;
+    function GetClientWidth: Integer;
+    procedure SetClientWidth(Value: Integer);
+    function GetClientHeight: Integer;
+    procedure SetClientHeight(Value: Integer);
+    procedure WndProc(var Message: TMessage); virtual;
+    property ControlStyle: TControlStyle read FControlStyle write FControlStyle;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure SetBounds(ALeft, ATop, AWidth, AHeight: Integer); virtual;
+    function Perform(Msg: Word; WParam: Word; LParam: Longint): Longint;
     procedure Invalidate; virtual;
     procedure Repaint; virtual;
     procedure Update; virtual;
@@ -127,10 +165,15 @@ type
     procedure Hide;
     procedure BringToFront;
     procedure SendToBack;
+    function Dragging: Boolean;
+    procedure BeginDrag(Immediate: Boolean); virtual;
+    procedure EndDrag(Drop: Boolean); virtual;
     property Align: TAlign read FAlign write SetAlign default alNone;
     property BoundsRect: TRect read GetBoundsRect write SetBoundsRect;
     property ClientRect: TRect read GetClientRect;
     property ClientOrigin: TPoint read GetClientOrigin;
+    property ClientWidth: Integer read GetClientWidth write SetClientWidth;
+    property ClientHeight: Integer read GetClientHeight write SetClientHeight;
     property Parent: TWinControl read FParent write SetParent;
     property Left: Integer read FLeft write SetLeft;
     property Top: Integer read FTop write SetTop;
@@ -140,11 +183,12 @@ type
     property Enabled: Boolean read FEnabled write SetEnabled;
     property Caption: string read FCaption write SetCaption;
     property Color: TColor read FColor write FColor;
-    property Font: TFont read FFont;
+    property Font: TFont read FFont write SetFont;
     property Cursor: TCursor read FCursor write FCursor;
     property PopupMenu: TPopupMenu read FPopupMenu write FPopupMenu;
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
     property OnDblClick: TNotifyEvent read FOnDblClick write FOnDblClick;
+    property OnResize: TNotifyEvent read FOnResize write FOnResize;
     property OnMouseDown: TMouseEvent read FOnMouseDown write FOnMouseDown;
     property OnMouseUp: TMouseEvent read FOnMouseUp write FOnMouseUp;
     property OnMouseMove: TMouseMoveEvent read FOnMouseMove write FOnMouseMove;
@@ -157,6 +201,8 @@ type
     property ParentFont: Boolean read FParentFont write FParentFont default True;
     property ParentShowHint: Boolean read FParentShowHint write FParentShowHint default True;
     property ShowHint: Boolean read FShowHint write FShowHint default False;
+    property Hint: string read FHint write FHint;
+    property HelpContext: THelpContext read FHelpContext write FHelpContext default 0;
     property DragCursor: TCursor read FDragCursor write FDragCursor default 0;
     property DragMode: TDragMode read FDragMode write FDragMode default dmManual;
     property OnDragDrop: TDragDropEvent read FOnDragDrop write FOnDragDrop;
@@ -189,6 +235,8 @@ type
     procedure CreateParams(var Params: TCreateParams); virtual;
     procedure CreateWindowHandle(const Params: TCreateParams); virtual;
     procedure DestroyWindowHandle; virtual;
+    procedure CreateWnd; virtual;
+    procedure DestroyWnd; virtual;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -196,6 +244,8 @@ type
     procedure DestroyHandle; virtual;
     procedure SetParent(AParent: TWinControl); override;
     procedure SetFocus; virtual;
+    function CanFocus: Boolean;
+    function Focused: Boolean;
     function HandleAllocated: Boolean;
     property TabOrder: TTabOrder read FTabOrder write FTabOrder default 0;
     property TabStop: Boolean read FTabStop write FTabStop default False;
@@ -214,6 +264,36 @@ type
     property ControlCount: Integer read GetControlCount;
   end;
 
+  TCustomControl = class(TWinControl)
+  private
+    FCanvas: TCanvas;
+    procedure WMPaint(var Message: TWMPaint); message WM_PAINT;
+  protected
+    procedure Paint; override;
+    procedure PaintWindow(DC: HDC); virtual;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    property Canvas: TCanvas read FCanvas;
+  end;
+
+  THintWindow = class(TCustomControl)
+  private
+    FActivating: Boolean;
+  protected
+    procedure CreateParams(var Params: TCreateParams); override;
+    procedure Paint; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    procedure ActivateHint(Rect: TRect; const AHint: string); virtual;
+    procedure ActivateHintData(Rect: TRect; const AHint: string; AData: Pointer); virtual;
+    function CalcHintRect(MaxWidth: Integer; const AHint: string; AData: Pointer): TRect; virtual;
+    function IsHintMsg(var Msg: TMsg): Boolean; virtual;
+    procedure ReleaseHandle;
+    property Caption;
+    property Color;
+  end;
+
   TControlCanvas = class(TCanvas)
   private
     FControl: TControl;
@@ -226,6 +306,9 @@ type
 
 function FindControl(AHwnd: HWND): TWinControl;
 function VclWindowProc(AHwnd: HWND; Msg: Word; AWParam: Word; ALParam: LongInt): LongInt; export;
+function Point(AX, AY: Integer): TPoint;
+function Rect(ALeft, ATop, ARight, ABottom: Integer): TRect;
+function Bounds(ALeft, ATop, AWidth, AHeight: Integer): TRect;
 
 implementation
 
@@ -356,6 +439,7 @@ begin
   FParentFont := True;
   FParentShowHint := True;
   FShowHint := False;
+  FControlStyle := [csCaptureMouse, csClickEvents];
 end;
 
 destructor TControl.Destroy;
@@ -369,12 +453,23 @@ begin
   inherited Destroy;
 end;
 
-procedure TControl.SetBounds(ALeft, ATop, AWidth, AHeight: Integer);
+procedure TControl.Resize;
 begin
+  if Assigned(FOnResize) then
+    FOnResize(Self);
+end;
+
+procedure TControl.SetBounds(ALeft, ATop, AWidth, AHeight: Integer);
+var
+  SizeChanged: Boolean;
+begin
+  SizeChanged := (FWidth <> AWidth) or (FHeight <> AHeight);
   FLeft := ALeft;
   FTop := ATop;
   FWidth := AWidth;
   FHeight := AHeight;
+  if SizeChanged then
+    Resize;
   Invalidate;
 end;
 
@@ -412,6 +507,69 @@ begin
     Inc(P.Y, FTop);
   end;
   Result := P;
+end;
+
+function TControl.GetClientWidth: Integer;
+begin
+  Result := GetClientRect.Right - GetClientRect.Left;
+end;
+
+procedure TControl.SetClientWidth(Value: Integer);
+begin
+  SetBounds(FLeft, FTop, Value + (FWidth - GetClientWidth), FHeight);
+end;
+
+function TControl.GetClientHeight: Integer;
+begin
+  Result := GetClientRect.Bottom - GetClientRect.Top;
+end;
+
+procedure TControl.SetClientHeight(Value: Integer);
+begin
+  SetBounds(FLeft, FTop, FWidth, Value + (FHeight - GetClientHeight));
+end;
+
+function TControl.Perform(Msg: Word; WParam: Word; LParam: Longint): Longint;
+var
+  M: TMessage;
+begin
+  M.Msg := Msg;
+  M.WParam := WParam;
+  M.LParam := LParam;
+  M.Result := 0;
+  WndProc(M);
+  Result := M.Result;
+end;
+
+procedure TControl.WndProc(var Message: TMessage);
+begin
+  Dispatch(Message);
+end;
+
+function TControl.Dragging: Boolean;
+begin
+  Result := FDragging;
+end;
+
+procedure TControl.BeginDrag(Immediate: Boolean);
+begin
+  FDragging := True;
+end;
+
+procedure TControl.EndDrag(Drop: Boolean);
+begin
+  if FDragging then
+  begin
+    FDragging := False;
+    if Assigned(FOnEndDrag) then
+      FOnEndDrag(Self, nil, 0, 0);
+  end;
+end;
+
+function Point(AX, AY: Integer): TPoint;
+begin
+  Result.X := AX;
+  Result.Y := AY;
 end;
 
 procedure TControl.SetLeft(Value: Integer);
@@ -461,6 +619,12 @@ begin
   end;
 end;
 
+procedure TControl.SetFont(Value: TFont);
+begin
+  FFont.Assign(Value);
+  Invalidate;
+end;
+
 procedure TControl.SetParent(AParent: TWinControl);
 begin
   if FParent <> AParent then
@@ -477,6 +641,12 @@ procedure TControl.Click;
 begin
   if Assigned(FOnClick) then
     FOnClick(Self);
+end;
+
+procedure TControl.DblClick;
+begin
+  if Assigned(FOnDblClick) then
+    FOnDblClick(Self);
 end;
 
 procedure TControl.Paint;
@@ -672,20 +842,28 @@ begin
     SetWindowLong(FHandle, 0, LongInt(Pointer(Self)));
 end;
 
-procedure TWinControl.CreateHandle;
+procedure TWinControl.CreateWnd;
 var
   Params: TCreateParams;
 begin
+  CreateParams(Params);
+  CreateWindowHandle(Params);
+end;
+
+procedure TWinControl.DestroyWnd;
+begin
+  DestroyWindowHandle;
+end;
+
+procedure TWinControl.CreateHandle;
+begin
   if not HandleAllocated then
-  begin
-    CreateParams(Params);
-    CreateWindowHandle(Params);
-  end;
+    CreateWnd;
 end;
 
 procedure TWinControl.DestroyHandle;
 begin
-  DestroyWindowHandle;
+  DestroyWnd;
 end;
 
 procedure TWinControl.DestroyWindowHandle;
@@ -701,6 +879,16 @@ procedure TWinControl.SetFocus;
 begin
   if HandleAllocated then
     WinProcs.SetFocus(FHandle);
+end;
+
+function TWinControl.CanFocus: Boolean;
+begin
+  Result := FVisible and FEnabled;
+end;
+
+function TWinControl.Focused: Boolean;
+begin
+  Result := HandleAllocated and (WinProcs.GetFocus = FHandle);
 end;
 
 procedure TWinControl.SetBounds(ALeft, ATop, AWidth, AHeight: Integer);
@@ -768,7 +956,7 @@ end;
 
 procedure TWinControl.WndProc(var Message: TMessage);
 begin
-  DefaultHandler(Message);
+  Dispatch(Message);
 end;
 
 procedure TWinControl.DefaultHandler(var Message);
@@ -825,6 +1013,134 @@ begin
       end;
     end;
   end;
+end;
+
+function Rect(ALeft, ATop, ARight, ABottom: Integer): TRect;
+begin
+  Result.Left := ALeft;
+  Result.Top := ATop;
+  Result.Right := ARight;
+  Result.Bottom := ABottom;
+end;
+
+function Bounds(ALeft, ATop, AWidth, AHeight: Integer): TRect;
+begin
+  Result.Left := ALeft;
+  Result.Top := ATop;
+  Result.Right := ALeft + AWidth;
+  Result.Bottom := ATop + AHeight;
+end;
+
+{ TCustomControl }
+
+constructor TCustomControl.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FCanvas := TControlCanvas.Create;
+  TControlCanvas(FCanvas).Control := Self;
+end;
+
+destructor TCustomControl.Destroy;
+begin
+  FCanvas.Free;
+  inherited Destroy;
+end;
+
+procedure TCustomControl.Paint;
+begin
+end;
+
+procedure TCustomControl.PaintWindow(DC: HDC);
+begin
+  FCanvas.Handle := DC;
+  try
+    Paint;
+  finally
+    FCanvas.Handle := 0;
+  end;
+end;
+
+procedure TCustomControl.WMPaint(var Message: TWMPaint);
+var
+  DC: HDC;
+  PS: TPaintStruct;
+begin
+  if Message.DC <> 0 then
+    PaintWindow(Message.DC)
+  else
+  begin
+    DC := BeginPaint(Handle, PS);
+    try
+      PaintWindow(DC);
+      PaintControls(DC, nil);
+    finally
+      EndPaint(Handle, PS);
+    end;
+  end;
+end;
+
+{ THintWindow }
+
+constructor THintWindow.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  Color := clInfoBk;
+  Canvas.Font.Color := clInfoText;
+  Visible := False;
+end;
+
+procedure THintWindow.CreateParams(var Params: TCreateParams);
+begin
+  inherited CreateParams(Params);
+  Params.Style := WS_POPUP or WS_BORDER;
+  Params.ExStyle := 0;
+  Params.WindowClass.Style := CS_SAVEBITS or CS_DBLCLKS;
+end;
+
+procedure THintWindow.Paint;
+var
+  R: TRect;
+begin
+  R := ClientRect;
+  Canvas.Brush.Color := Color;
+  Canvas.FillRect(R);
+  Canvas.Brush.Style := bsClear;
+  Canvas.Font.Color := clInfoText;
+  DrawText(Canvas.Handle, PChar(Caption), -1, R, DT_LEFT or DT_WORDBREAK or DT_NOPREFIX);
+end;
+
+procedure THintWindow.ActivateHint(Rect: TRect; const AHint: string);
+begin
+  Caption := AHint;
+  SetBounds(Rect.Left, Rect.Top, Rect.Right - Rect.Left, Rect.Bottom - Rect.Top);
+  ShowWindow(Handle, SW_SHOWNOACTIVATE);
+  Invalidate;
+end;
+
+procedure THintWindow.ActivateHintData(Rect: TRect; const AHint: string; AData: Pointer);
+begin
+  ActivateHint(Rect, AHint);
+end;
+
+function THintWindow.CalcHintRect(MaxWidth: Integer; const AHint: string; AData: Pointer): TRect;
+var
+  R: TRect;
+begin
+  R := Rect(0, 0, MaxWidth, 0);
+  DrawText(Canvas.Handle, PChar(AHint), -1, R, DT_CALCRECT or DT_LEFT or DT_WORDBREAK or DT_NOPREFIX);
+  Inc(R.Right, 6);
+  Inc(R.Bottom, 2);
+  Result := R;
+end;
+
+function THintWindow.IsHintMsg(var Msg: TMsg): Boolean;
+begin
+  Result := False;
+end;
+
+procedure THintWindow.ReleaseHandle;
+begin
+  DestroyHandle;
 end;
 
 initialization

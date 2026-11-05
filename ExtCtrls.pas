@@ -5,14 +5,13 @@ unit ExtCtrls;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, SysUtils;
+  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, SysUtils, StdCtrls, Messages;
 
 type
   TBevelStyle = (bsLowered, bsRaised);
   TBevelShape = (bsBox, bsFrame, bsTopLine, bsBottomLine, bsLeftLine, bsRightLine, bsSpacer);
   TPanelBevel = (bvNone, bvLowered, bvRaised, bvSpace);
   TAlignment = (taLeftJustify, taRightJustify, taCenter);
-  TBorderStyle = (bsNone, bsSingle);
 
   TTimer = class(TComponent)
   private
@@ -50,7 +49,7 @@ type
     property Enabled;
   end;
 
-  TPanel = class(TWinControl)
+  TCustomPanel = class(TWinControl)
   private
     FAlignment: TAlignment;
     FBevelInner: TPanelBevel;
@@ -67,18 +66,27 @@ type
     procedure SetBorderStyle(Value: TBorderStyle);
   protected
     procedure Paint; override;
-  public
-    constructor Create(AOwner: TComponent); override;
-    destructor Destroy; override;
-    procedure WndProc(var Message: TMessage); override;
-    property Canvas: TCanvas read FCanvas;
-  published
     property Alignment: TAlignment read FAlignment write SetAlignment;
     property BevelInner: TPanelBevel read FBevelInner write SetBevelInner;
     property BevelOuter: TPanelBevel read FBevelOuter write SetBevelOuter;
     property BevelWidth: Integer read FBevelWidth write SetBevelWidth;
     property BorderWidth: Integer read FBorderWidth write SetBorderWidth;
     property BorderStyle: TBorderStyle read FBorderStyle write SetBorderStyle;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    procedure WndProc(var Message: TMessage); override;
+    property Canvas: TCanvas read FCanvas;
+  end;
+
+  TPanel = class(TCustomPanel)
+  published
+    property Alignment;
+    property BevelInner;
+    property BevelOuter;
+    property BevelWidth;
+    property BorderWidth;
+    property BorderStyle;
     property Caption;
     property Color;
     property Font;
@@ -88,6 +96,37 @@ type
     property OnMouseDown;
     property OnMouseUp;
     property OnMouseMove;
+  end;
+
+  TPage = class(TWinControl)
+  public
+    constructor Create(AOwner: TComponent); override;
+  end;
+
+  TNotebook = class(TWinControl)
+  private
+    FPages: TStrings;
+    FPageIndex: Integer;
+    FOnPageChanged: TNotifyEvent;
+    function GetActivePage: string;
+    procedure SetActivePage(const Value: string);
+    procedure SetPageIndex(Value: Integer);
+    procedure SetPages(Value: TStrings);
+  protected
+    procedure CreateParams(var Params: TCreateParams); override;
+    procedure ShowCurrentPage; virtual;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    property ActivePage: string read GetActivePage write SetActivePage;
+  published
+    property Pages: TStrings read FPages write SetPages;
+    property PageIndex: Integer read FPageIndex write SetPageIndex default 0;
+    property OnPageChanged: TNotifyEvent read FOnPageChanged write FOnPageChanged;
+    property Enabled;
+    property Visible;
+    property Font;
+    property Color;
   end;
 
   TImage = class(TControl)
@@ -134,6 +173,54 @@ type
   published
     property Visible;
     property Enabled;
+  end;
+
+  TRadioGroup = class(TGroupBox)
+  private
+    FItems: TStrings;
+    FItemIndex: Integer;
+    FColumns: Integer;
+    FButtons: TList;
+    FReading: Boolean;
+    procedure SetItems(Value: TStrings);
+    procedure SetItemIndex(Value: Integer);
+    procedure SetColumns(Value: Integer);
+    procedure ItemsChange(Sender: TObject);
+    procedure ButtonClick(Sender: TObject);
+    procedure ArrangeButtons;
+  protected
+    procedure Loaded; override;
+    procedure ReadState(Reader: TReader); override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+  published
+    property Align;
+    property Caption;
+    property Color;
+    property Columns: Integer read FColumns write SetColumns default 1;
+    property Ctl3D;
+    property DragCursor;
+    property DragMode;
+    property Enabled;
+    property Font;
+    property ItemIndex: Integer read FItemIndex write SetItemIndex default -1;
+    property Items: TStrings read FItems write SetItems;
+    property ParentColor;
+    property ParentCtl3D;
+    property ParentFont;
+    property ParentShowHint;
+    property PopupMenu;
+    property ShowHint;
+    property TabOrder;
+    property TabStop;
+    property Visible;
+    property OnClick;
+    property OnDragDrop;
+    property OnDragOver;
+    property OnEndDrag;
+    property OnEnter;
+    property OnExit;
   end;
 
 procedure Frame3D(Canvas: TCanvas; var Rect: TRect; TopColor, BottomColor: TColor; Width: Integer);
@@ -315,9 +402,9 @@ begin
   end;
 end;
 
-{ TPanel }
+{ TCustomPanel }
 
-constructor TPanel.Create(AOwner: TComponent);
+constructor TCustomPanel.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FCanvas := TCanvas.Create;
@@ -332,13 +419,13 @@ begin
   FBorderStyle := bsNone;
 end;
 
-destructor TPanel.Destroy;
+destructor TCustomPanel.Destroy;
 begin
   FCanvas.Free;
   inherited Destroy;
 end;
 
-procedure TPanel.SetAlignment(Value: TAlignment);
+procedure TCustomPanel.SetAlignment(Value: TAlignment);
 begin
   if FAlignment <> Value then
   begin
@@ -347,7 +434,7 @@ begin
   end;
 end;
 
-procedure TPanel.SetBevelInner(Value: TPanelBevel);
+procedure TCustomPanel.SetBevelInner(Value: TPanelBevel);
 begin
   if FBevelInner <> Value then
   begin
@@ -356,7 +443,7 @@ begin
   end;
 end;
 
-procedure TPanel.SetBevelOuter(Value: TPanelBevel);
+procedure TCustomPanel.SetBevelOuter(Value: TPanelBevel);
 begin
   if FBevelOuter <> Value then
   begin
@@ -365,7 +452,7 @@ begin
   end;
 end;
 
-procedure TPanel.SetBevelWidth(Value: Integer);
+procedure TCustomPanel.SetBevelWidth(Value: Integer);
 begin
   if FBevelWidth <> Value then
   begin
@@ -374,7 +461,7 @@ begin
   end;
 end;
 
-procedure TPanel.SetBorderWidth(Value: Integer);
+procedure TCustomPanel.SetBorderWidth(Value: Integer);
 begin
   if FBorderWidth <> Value then
   begin
@@ -383,7 +470,7 @@ begin
   end;
 end;
 
-procedure TPanel.SetBorderStyle(Value: TBorderStyle);
+procedure TCustomPanel.SetBorderStyle(Value: TBorderStyle);
 begin
   if FBorderStyle <> Value then
   begin
@@ -392,7 +479,7 @@ begin
   end;
 end;
 
-procedure TPanel.Paint;
+procedure TCustomPanel.Paint;
 var
   R: RECT;
   TopColor, BottomColor: TColor;
@@ -444,7 +531,7 @@ begin
   end;
 end;
 
-procedure TPanel.WndProc(var Message: TMessage);
+procedure TCustomPanel.WndProc(var Message: TMessage);
 var
   DC: HDC;
   PS: TPaintStruct;
@@ -465,6 +552,95 @@ begin
     Exit;
   end;
   inherited WndProc(Message);
+end;
+
+{ TPage }
+
+constructor TPage.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FVisible := True;
+end;
+
+{ TNotebook }
+
+constructor TNotebook.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FPages := TStringList.Create;
+  FPageIndex := 0;
+  FWidth := 150;
+  FHeight := 150;
+end;
+
+destructor TNotebook.Destroy;
+var
+  I: Integer;
+begin
+  for I := 0 to FPages.Count - 1 do
+  begin
+    if FPages.Objects[I] <> nil then
+      TObject(FPages.Objects[I]).Free;
+  end;
+  FPages.Free;
+  inherited Destroy;
+end;
+
+procedure TNotebook.CreateParams(var Params: TCreateParams);
+begin
+  inherited CreateParams(Params);
+  Params.Style := Params.Style or WS_CLIPCHILDREN;
+end;
+
+function TNotebook.GetActivePage: string;
+begin
+  if (FPageIndex >= 0) and (FPageIndex < FPages.Count) then
+    Result := FPages[FPageIndex]
+  else
+    Result := '';
+end;
+
+procedure TNotebook.SetActivePage(const Value: string);
+var
+  Idx: Integer;
+begin
+  Idx := FPages.IndexOf(Value);
+  if Idx >= 0 then
+    SetPageIndex(Idx);
+end;
+
+procedure TNotebook.SetPageIndex(Value: Integer);
+begin
+  if FPageIndex <> Value then
+  begin
+    FPageIndex := Value;
+    ShowCurrentPage;
+    if Assigned(FOnPageChanged) then
+      FOnPageChanged(Self);
+  end;
+end;
+
+procedure TNotebook.SetPages(Value: TStrings);
+begin
+  FPages.Assign(Value);
+  if FPageIndex >= FPages.Count then
+    FPageIndex := FPages.Count - 1;
+  ShowCurrentPage;
+end;
+
+procedure TNotebook.ShowCurrentPage;
+var
+  I: Integer;
+  P: TControl;
+begin
+  for I := 0 to FPages.Count - 1 do
+  begin
+    if FPages.Objects[I] is TControl then
+    begin
+      P := TControl(FPages.Objects[I]);
+      P.Visible := (I = FPageIndex);
+    end;
+  end;
 end;
 
 { TImage }
@@ -590,6 +766,135 @@ begin
     FSectionWidths.Add(Pointer(50));
   FSectionWidths[Index] := Pointer(Value);
   Invalidate;
+end;
+
+{ TRadioGroup }
+
+constructor TRadioGroup.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FItems := TStringList.Create;
+  TStringList(FItems).OnChange := ItemsChange;
+  FButtons := TList.Create;
+  FItemIndex := -1;
+  FColumns := 1;
+end;
+
+destructor TRadioGroup.Destroy;
+begin
+  SetItemIndex(-1);
+  FItems.Free;
+  FButtons.Free;
+  inherited Destroy;
+end;
+
+procedure TRadioGroup.ItemsChange(Sender: TObject);
+begin
+  if not FReading then
+    ArrangeButtons;
+end;
+
+procedure TRadioGroup.SetColumns(Value: Integer);
+begin
+  if Value < 1 then Value := 1;
+  if FColumns <> Value then
+  begin
+    FColumns := Value;
+    ArrangeButtons;
+  end;
+end;
+
+procedure TRadioGroup.SetItemIndex(Value: Integer);
+begin
+  if FReading then
+    FItemIndex := Value
+  else
+  begin
+    if Value < -1 then Value := -1;
+    if Value >= FButtons.Count then Value := FButtons.Count - 1;
+    if FItemIndex <> Value then
+    begin
+      if (FItemIndex >= 0) and (FItemIndex < FButtons.Count) then
+        TRadioButton(FButtons[FItemIndex]).Checked := False;
+      FItemIndex := Value;
+      if (FItemIndex >= 0) and (FItemIndex < FButtons.Count) then
+        TRadioButton(FButtons[FItemIndex]).Checked := True;
+      Click;
+    end;
+  end;
+end;
+
+procedure TRadioGroup.SetItems(Value: TStrings);
+begin
+  FItems.Assign(Value);
+end;
+
+procedure TRadioGroup.ButtonClick(Sender: TObject);
+begin
+  if not FReading then
+  begin
+    SetItemIndex(FButtons.IndexOf(Sender));
+  end;
+end;
+
+procedure TRadioGroup.ArrangeButtons;
+var
+  I, Col, Row, ColCount, RowCount: Integer;
+  BtnWidth, BtnHeight, StartX, StartY: Integer;
+  Btn: TRadioButton;
+begin
+  while FButtons.Count > 0 do
+  begin
+    TObject(FButtons.Last).Free;
+    FButtons.Delete(FButtons.Count - 1);
+  end;
+  if FItems.Count = 0 then Exit;
+
+  ColCount := FColumns;
+  if ColCount < 1 then ColCount := 1;
+  RowCount := (FItems.Count + ColCount - 1) div ColCount;
+  if RowCount < 1 then RowCount := 1;
+
+  StartX := 10;
+  StartY := 20;
+  BtnWidth := (Width - StartX * 2) div ColCount;
+  BtnHeight := (Height - StartY - 10) div RowCount;
+  if BtnHeight < 18 then BtnHeight := 18;
+
+  for I := 0 to FItems.Count - 1 do
+  begin
+    Col := I div RowCount;
+    Row := I mod RowCount;
+    Btn := TRadioButton.Create(Self);
+    Btn.Parent := Self;
+    Btn.Caption := FItems[I];
+    Btn.Left := StartX + Col * BtnWidth;
+    Btn.Top := StartY + Row * BtnHeight;
+    Btn.Width := BtnWidth;
+    Btn.Height := BtnHeight;
+    Btn.OnClick := ButtonClick;
+    if I = FItemIndex then
+      Btn.Checked := True;
+    FButtons.Add(Btn);
+  end;
+end;
+
+procedure TRadioGroup.Loaded;
+begin
+  inherited Loaded;
+  ArrangeButtons;
+  if (FItemIndex >= 0) and (FItemIndex < FButtons.Count) then
+    TRadioButton(FButtons[FItemIndex]).Checked := True;
+end;
+
+procedure TRadioGroup.ReadState(Reader: TReader);
+begin
+  FReading := True;
+  try
+    inherited ReadState(Reader);
+  finally
+    FReading := False;
+  end;
 end;
 
 procedure Frame3D(Canvas: TCanvas; var Rect: TRect; TopColor, BottomColor: TColor; Width: Integer);

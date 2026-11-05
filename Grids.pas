@@ -67,9 +67,9 @@ type
     procedure TopLeftChanged; virtual;
     procedure Paint; override;
     procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
-    property Canvas: TCanvas read FCanvas;
-    property Col: Longint read FCol write SetCol;
-    property Row: Longint read FRow write SetRow;
+    procedure InvalidateCell(ACol, ARow: Longint);
+    procedure InvalidateCol(ACol: Longint);
+    procedure InvalidateRow(ARow: Longint);
     property ColCount: Longint read FColCount write SetColCount default 5;
     property RowCount: Longint read FRowCount write SetRowCount default 5;
     property FixedCols: Integer read FFixedCols write SetFixedCols default 1;
@@ -89,6 +89,10 @@ type
     destructor Destroy; override;
     function CellRect(ACol, ARow: Longint): TRect;
     procedure MouseToCell(X, Y: Integer; var ACol, ARow: Longint);
+    function MouseCoord(X, Y: Integer): TGridCoord;
+    property Canvas: TCanvas read FCanvas;
+    property Col: Longint read FCol write SetCol;
+    property Row: Longint read FRow write SetRow;
     property ColWidths[Index: Longint]: Integer read GetColWidth write SetColWidth;
     property RowHeights[Index: Longint]: Integer read GetRowHeight write SetRowHeight;
   end;
@@ -380,6 +384,36 @@ begin
     ARow := 0;
   if ACol >= FColCount then ACol := -1;
   if ARow >= FRowCount then ARow := -1;
+end;
+
+function TCustomGrid.MouseCoord(X, Y: Integer): TGridCoord;
+var
+  ACol, ARow: Longint;
+begin
+  MouseToCell(X, Y, ACol, ARow);
+  Result.X := ACol;
+  Result.Y := ARow;
+end;
+
+procedure TCustomGrid.InvalidateCell(ACol, ARow: Longint);
+var
+  R: TRect;
+begin
+  if HandleAllocated then
+  begin
+    R := CellRect(ACol, ARow);
+    InvalidateRect(FHandle, @R, False);
+  end;
+end;
+
+procedure TCustomGrid.InvalidateCol(ACol: Longint);
+begin
+  Invalidate;
+end;
+
+procedure TCustomGrid.InvalidateRow(ARow: Longint);
+begin
+  Invalidate;
 end;
 
 procedure TCustomGrid.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
