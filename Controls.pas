@@ -50,11 +50,11 @@ const
 type
   TPoint = WinTypes.TPoint;
   TRect = WinTypes.TRect;
-  TCaption = string;
+  TCaption = type ShortString;
   TCursor = Integer;
   TMouseButton = (mbLeft, mbRight, mbMiddle);
-  TShiftStateEnum = (ssShift, ssAlt, ssCtrl, ssLeft, ssRight, ssMiddle, ssDouble);
-  TShiftState = set of TShiftStateEnum;
+  TShiftStateEnum = Classes.TShiftStateEnum;
+  TShiftState = Classes.TShiftState;
 
   TNotifyEvent = procedure(Sender: TObject) of object;
   TMouseEvent = procedure(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer) of object;
@@ -128,6 +128,7 @@ type
     procedure SetTop(Value: Integer);
     procedure SetWidth(Value: Integer);
     procedure SetHeight(Value: Integer);
+    function GetShowing: Boolean; virtual;
     procedure SetVisible(Value: Boolean);
     procedure SetEnabled(Value: Boolean);
     procedure SetCaption(const Value: string);
@@ -168,6 +169,8 @@ type
     function Dragging: Boolean;
     procedure BeginDrag(Immediate: Boolean); virtual;
     procedure EndDrag(Drop: Boolean); virtual;
+    function ClientToScreen(const Point: TPoint): TPoint;
+    function ScreenToClient(const Point: TPoint): TPoint;
     property Align: TAlign read FAlign write SetAlign default alNone;
     property BoundsRect: TRect read GetBoundsRect write SetBoundsRect;
     property ClientRect: TRect read GetClientRect;
@@ -180,6 +183,7 @@ type
     property Width: Integer read FWidth write SetWidth;
     property Height: Integer read FHeight write SetHeight;
     property Visible: Boolean read FVisible write SetVisible;
+    property Showing: Boolean read GetShowing;
     property Enabled: Boolean read FEnabled write SetEnabled;
     property Caption: string read FCaption write SetCaption;
     property Color: TColor read FColor write FColor;
@@ -232,6 +236,7 @@ type
     FOnExit: TNotifyEvent;
     function GetControl(Index: Integer): TControl;
     function GetControlCount: Integer;
+    function GetShowing: Boolean; override;
     procedure CreateParams(var Params: TCreateParams); virtual;
     procedure CreateWindowHandle(const Params: TCreateParams); virtual;
     procedure DestroyWindowHandle; virtual;
@@ -242,6 +247,7 @@ type
     destructor Destroy; override;
     procedure CreateHandle; virtual;
     procedure DestroyHandle; virtual;
+    procedure RecreateWnd; virtual;
     procedure SetParent(AParent: TWinControl); override;
     procedure SetFocus; virtual;
     function CanFocus: Boolean;
@@ -259,6 +265,9 @@ type
     procedure Broadcast(var Message);
     procedure WndProc(var Message: TMessage); virtual;
     procedure DefaultHandler(var Message); override;
+    procedure InsertControl(AControl: TControl);
+    procedure RemoveControl(AControl: TControl);
+    function ControlAtPos(const Pos: TPoint; AllowDisabled: Boolean): TControl;
     property Handle: HWND read FHandle;
     property Controls[Index: Integer]: TControl read GetControl;
     property ControlCount: Integer read GetControlCount;
@@ -305,6 +314,9 @@ type
   end;
 
 function FindControl(AHwnd: HWND): TWinControl;
+function FindDragTarget(const Position: TPoint; AllowDisabled: Boolean): TControl;
+function GetCaptureControl: TControl;
+procedure SetCaptureControl(Control: TControl);
 function VclWindowProc(AHwnd: HWND; Msg: Word; AWParam: Word; ALParam: LongInt): LongInt; export;
 function Point(AX, AY: Integer): TPoint;
 function Rect(ALeft, ATop, ARight, ABottom: Integer): TRect;
@@ -318,6 +330,7 @@ const
 var
   ClassRegistered: Boolean = False;
   ControlList: TList = nil;
+  CaptureControl: TControl = nil;
 
 function VclWindowProc(AHwnd: HWND; Msg: Word; AWParam: Word; ALParam: LongInt): LongInt; export;
 var
@@ -415,6 +428,28 @@ begin
       end;
     end;
   end;
+end;
+
+function FindDragTarget(const Position: TPoint; AllowDisabled: Boolean): TControl;
+var
+  H: HWND;
+  WC: TWinControl;
+  P: TPoint;
+  C: TControl;
+begin
+  Result := nil;
+  H := WindowFromPoint(Position);
+  if H = 0 then Exit;
+  WC := FindControl(H);
+  if WC = nil then Exit;
+  P := WC.ScreenToClient(Position);
+  C := WC.ControlAtPos(P, AllowDisabled);
+  if C <> nil then
+    Result := C
+  else
+    Result := WC;
+  if (Result <> nil) and not AllowDisabled and not Result.Enabled then
+    Result := nil;
 end;
 
 { TControl }
@@ -566,6 +601,66 @@ begin
   end;
 end;
 
+function GetCaptureControl: TControl;
+begin
+  Result := CaptureControl;
+end;
+
+procedure SetCaptureControl(Control: TControl);
+begin
+  if CaptureControl <> Control then
+  begin
+    CaptureControl := Control;
+    if Control <> nil then
+    begin
+      if (Control is TWinControl) and TWinControl(Control).HandleAllocated then
+        SetCapture(TWinControl(Control).Handle)
+      else if (Control.Parent <> nil) and Control.Parent.HandleAllocated then
+        SetCapture(Control.Parent.Handle);
+    end
+    else
+      ReleaseCapture;
+  end;
+end;
+
+function TControl.ClientToScreen(const Point: TPoint): TPoint;
+var
+  Pt: WinTypes.POINT;
+begin
+  if (Self is TWinControl) and TWinControl(Self).HandleAllocated then
+  begin
+    Pt.x := Point.X;
+    Pt.y := Point.Y;
+    WinProcs.ClientToScreen(TWinControl(Self).Handle, Pt);
+    Result.X := Pt.x;
+    Result.Y := Pt.y;
+  end
+  else
+  begin
+    Result.X := Point.X + ClientOrigin.X;
+    Result.Y := Point.Y + ClientOrigin.Y;
+  end;
+end;
+
+function TControl.ScreenToClient(const Point: TPoint): TPoint;
+var
+  Pt: WinTypes.POINT;
+begin
+  if (Self is TWinControl) and TWinControl(Self).HandleAllocated then
+  begin
+    Pt.x := Point.X;
+    Pt.y := Point.Y;
+    WinProcs.ScreenToClient(TWinControl(Self).Handle, Pt);
+    Result.X := Pt.x;
+    Result.Y := Pt.y;
+  end
+  else
+  begin
+    Result.X := Point.X - ClientOrigin.X;
+    Result.Y := Point.Y - ClientOrigin.Y;
+  end;
+end;
+
 function Point(AX, AY: Integer): TPoint;
 begin
   Result.X := AX;
@@ -590,6 +685,11 @@ end;
 procedure TControl.SetHeight(Value: Integer);
 begin
   SetBounds(FLeft, FTop, FWidth, Value);
+end;
+
+function TControl.GetShowing: Boolean;
+begin
+  Result := FVisible and ((FParent = nil) or FParent.Showing);
 end;
 
 procedure TControl.SetVisible(Value: Boolean);
@@ -795,9 +895,57 @@ begin
   Result := TControl(FControls[Index]);
 end;
 
+function TWinControl.GetShowing: Boolean;
+begin
+  Result := FVisible and ((FParent = nil) or FParent.Showing);
+  if Result and (FHandle <> 0) then
+    Result := IsWindowVisible(FHandle);
+end;
+
 function TWinControl.GetControlCount: Integer;
 begin
   Result := FControls.Count;
+end;
+
+procedure TWinControl.InsertControl(AControl: TControl);
+begin
+  if AControl <> nil then
+  begin
+    if FControls.IndexOf(AControl) < 0 then
+      FControls.Add(AControl);
+    AControl.FParent := Self;
+  end;
+end;
+
+procedure TWinControl.RemoveControl(AControl: TControl);
+begin
+  if AControl <> nil then
+  begin
+    FControls.Remove(AControl);
+    if AControl.FParent = Self then
+      AControl.FParent := nil;
+  end;
+end;
+
+function TWinControl.ControlAtPos(const Pos: TPoint; AllowDisabled: Boolean): TControl;
+var
+  I: Integer;
+  C: TControl;
+begin
+  Result := nil;
+  for I := FControls.Count - 1 downto 0 do
+  begin
+    C := TControl(FControls[I]);
+    if C.Visible and (AllowDisabled or C.Enabled) then
+    begin
+      if (Pos.X >= C.Left) and (Pos.X < C.Left + C.Width) and
+         (Pos.Y >= C.Top) and (Pos.Y < C.Top + C.Height) then
+      begin
+        Result := C;
+        Exit;
+      end;
+    end;
+  end;
 end;
 
 function TWinControl.HandleAllocated: Boolean;
@@ -864,6 +1012,15 @@ end;
 procedure TWinControl.DestroyHandle;
 begin
   DestroyWnd;
+end;
+
+procedure TWinControl.RecreateWnd;
+begin
+  if HandleAllocated then
+  begin
+    DestroyHandle;
+    CreateHandle;
+  end;
 end;
 
 procedure TWinControl.DestroyWindowHandle;

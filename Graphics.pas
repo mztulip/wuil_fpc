@@ -147,6 +147,9 @@ type
     procedure SetPixel(X, Y: Integer; Value: TColor);
     function GetPenPos: TPoint;
     procedure SetPenPos(const Value: TPoint);
+    procedure SetFont(Value: TFont);
+    procedure SetPen(Value: TPen);
+    procedure SetBrush(Value: TBrush);
   public
     constructor Create;
     destructor Destroy; override;
@@ -170,9 +173,9 @@ type
     procedure PolyLine(const Points: array of TPoint);
     property Pixels[X, Y: Integer]: TColor read GetPixel write SetPixel;
     property Handle: HDC read FHandle write SetHandle;
-    property Font: TFont read FFont;
-    property Pen: TPen read FPen;
-    property Brush: TBrush read FBrush;
+    property Font: TFont read FFont write SetFont;
+    property Pen: TPen read FPen write SetPen;
+    property Brush: TBrush read FBrush write SetBrush;
     property PenPos: TPoint read GetPenPos write SetPenPos;
   end;
 
@@ -188,6 +191,8 @@ type
     procedure Draw(ACanvas: TCanvas; const Rect: TRect); virtual; abstract;
     procedure LoadFromFile(const Filename: string); virtual;
     procedure SaveToFile(const Filename: string); virtual;
+    procedure LoadFromStream(Stream: TStream); virtual;
+    procedure SaveToStream(Stream: TStream); virtual;
     property Empty: Boolean read GetEmpty;
     property Height: Integer read GetHeight write SetHeight;
     property Width: Integer read GetWidth write SetWidth;
@@ -196,6 +201,7 @@ type
   TIcon = class(TGraphic)
   private
     FHandle: HICON;
+    FMemoryImage: TMemoryStream;
     function GetHandle: HICON;
     procedure SetHandle(Value: HICON);
   protected
@@ -207,6 +213,8 @@ type
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
     procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
+    procedure LoadFromStream(Stream: TStream); override;
+    procedure SaveToStream(Stream: TStream); override;
     property Handle: HICON read GetHandle write SetHandle;
   end;
 
@@ -230,6 +238,8 @@ type
     procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
     procedure FreeImage;
     procedure LoadFromResourceName(Instance: THandle; const ResName: string);
+    procedure LoadFromStream(Stream: TStream); override;
+    procedure SaveToStream(Stream: TStream); override;
     property Canvas: TCanvas read GetCanvas;
     property Handle: HBITMAP read FHandle write SetHandle;
     property Height: Integer read GetHeight write SetHeight;
@@ -288,6 +298,7 @@ function ColorToString(Color: TColor): string;
 function StringToColor(const S: string): TColor;
 function ColorToIdent(Color: Longint; var Ident: OpenString): Boolean;
 function IdentToColor(const Ident: string; var Color: Longint): Boolean;
+procedure GetColorValues(Proc: TGetStrProc);
 function Point(AX, AY: Integer): TPoint;
 function Rect(ALeft, ATop, ARight, ABottom: Integer): TRect;
 function Bounds(ALeft, ATop, AWidth, AHeight: Integer): TRect;
@@ -453,6 +464,25 @@ end;
 function IntersectRect(var Dest: TRect; const Source1, Source2: TRect): SmallInt;
 begin
   Result := WinProcs.IntersectRect(@Dest, @Source1, @Source2);
+end;
+
+procedure GetColorValues(Proc: TGetStrProc);
+const
+  ColorNames: array[0..36] of string[25] = (
+    'clBlack', 'clMaroon', 'clGreen', 'clOlive', 'clNavy', 'clPurple',
+    'clTeal', 'clGray', 'clSilver', 'clRed', 'clLime', 'clYellow',
+    'clBlue', 'clFuchsia', 'clAqua', 'clWhite',
+    'clScrollBar', 'clBackground', 'clActiveCaption', 'clInactiveCaption',
+    'clMenu', 'clWindow', 'clWindowFrame', 'clMenuText', 'clWindowText',
+    'clCaptionText', 'clActiveBorder', 'clInactiveBorder', 'clAppWorkSpace',
+    'clHighlight', 'clHighlightText', 'clBtnFace', 'clBtnShadow',
+    'clGrayText', 'clBtnText', 'clInactiveCaptionText', 'clBtnHighlight'
+  );
+var
+  I: Integer;
+begin
+  for I := Low(ColorNames) to High(ColorNames) do
+    Proc(ColorNames[I]);
 end;
 
 { TFont }
@@ -781,6 +811,21 @@ begin
   MoveTo(Value.X, Value.Y);
 end;
 
+procedure TCanvas.SetFont(Value: TFont);
+begin
+  FFont.Assign(Value);
+end;
+
+procedure TCanvas.SetPen(Value: TPen);
+begin
+  FPen.Assign(Value);
+end;
+
+procedure TCanvas.SetBrush(Value: TBrush);
+begin
+  FBrush.Assign(Value);
+end;
+
 procedure TCanvas.MoveTo(X, Y: Integer);
 begin
   FPenPos.X := X;
@@ -1005,10 +1050,34 @@ begin
 end;
 
 procedure TGraphic.LoadFromFile(const Filename: string);
+var
+  Stream: TStream;
 begin
+  Stream := TFileStream.Create(Filename, fmOpenRead);
+  try
+    LoadFromStream(Stream);
+  finally
+    Stream.Free;
+  end;
 end;
 
 procedure TGraphic.SaveToFile(const Filename: string);
+var
+  Stream: TStream;
+begin
+  Stream := TFileStream.Create(Filename, fmCreate);
+  try
+    SaveToStream(Stream);
+  finally
+    Stream.Free;
+  end;
+end;
+
+procedure TGraphic.LoadFromStream(Stream: TStream);
+begin
+end;
+
+procedure TGraphic.SaveToStream(Stream: TStream);
 begin
 end;
 
@@ -1018,10 +1087,12 @@ constructor TIcon.Create;
 begin
   inherited Create;
   FHandle := 0;
+  FMemoryImage := TMemoryStream.Create;
 end;
 
 destructor TIcon.Destroy;
 begin
+  FMemoryImage.Free;
   if FHandle <> 0 then
     DestroyIcon(FHandle);
   inherited Destroy;
@@ -1029,7 +1100,7 @@ end;
 
 function TIcon.GetEmpty: Boolean;
 begin
-  Result := FHandle = 0;
+  Result := (FHandle = 0) and (FMemoryImage.Size = 0);
 end;
 
 function TIcon.GetHeight: Integer;
@@ -1060,7 +1131,16 @@ end;
 procedure TIcon.Assign(Source: TPersistent);
 begin
   if Source is TIcon then
-    SetHandle(CopyIcon(HInstance, TIcon(Source).Handle))
+  begin
+    SetHandle(CopyIcon(HInstance, TIcon(Source).Handle));
+    FMemoryImage.Clear;
+    if TIcon(Source).FMemoryImage.Size > 0 then
+    begin
+      TIcon(Source).FMemoryImage.Position := 0;
+      FMemoryImage.CopyFrom(TIcon(Source).FMemoryImage, TIcon(Source).FMemoryImage.Size);
+      FMemoryImage.Position := 0;
+    end;
+  end
   else
     inherited Assign(Source);
 end;
@@ -1069,6 +1149,67 @@ procedure TIcon.Draw(ACanvas: TCanvas; const Rect: TRect);
 begin
   if (ACanvas <> nil) and (ACanvas.Handle <> 0) and (FHandle <> 0) then
     DrawIcon(ACanvas.Handle, Rect.Left, Rect.Top, FHandle);
+end;
+
+procedure TIcon.LoadFromStream(Stream: TStream);
+var
+  Hdr: record
+    idReserved: Word;
+    idType: Word;
+    idCount: Word;
+  end;
+  Entry: record
+    bWidth, bHeight, bColorCount, bReserved: Byte;
+    wPlanes, wBitCount: Word;
+    dwBytesInRes, dwImageOffset: Longint;
+  end;
+  StartPos: Longint;
+  TotalSize, I: Longint;
+begin
+  StartPos := Stream.Position;
+  if Stream.Read(Hdr, SizeOf(Hdr)) = SizeOf(Hdr) then
+  begin
+    if (Hdr.idType = 1) and (Hdr.idCount > 0) then
+    begin
+      TotalSize := SizeOf(Hdr) + Hdr.idCount * SizeOf(Entry);
+      for I := 1 to Hdr.idCount do
+      begin
+        if Stream.Read(Entry, SizeOf(Entry)) = SizeOf(Entry) then
+        begin
+          if Entry.dwImageOffset + Entry.dwBytesInRes > TotalSize then
+            TotalSize := Entry.dwImageOffset + Entry.dwBytesInRes;
+        end;
+      end;
+      Stream.Position := StartPos;
+      FMemoryImage.Clear;
+      FMemoryImage.CopyFrom(Stream, TotalSize);
+      FMemoryImage.Position := 0;
+    end
+    else
+      FMemoryImage.Clear;
+  end;
+end;
+
+procedure TIcon.SaveToStream(Stream: TStream);
+var
+  Hdr: record
+    idReserved: Word;
+    idType: Word;
+    idCount: Word;
+  end;
+begin
+  if FMemoryImage.Size > 0 then
+  begin
+    FMemoryImage.Position := 0;
+    Stream.CopyFrom(FMemoryImage, FMemoryImage.Size);
+  end
+  else
+  begin
+    Hdr.idReserved := 0;
+    Hdr.idType := 1;
+    Hdr.idCount := 0;
+    Stream.Write(Hdr, SizeOf(Hdr));
+  end;
 end;
 
 { TBitmap }
@@ -1192,6 +1333,14 @@ end;
 procedure TBitmap.LoadFromResourceName(Instance: THandle; const ResName: string);
 begin
   SetHandle(LoadBitmap(Instance, PChar(ResName)));
+end;
+
+procedure TBitmap.LoadFromStream(Stream: TStream);
+begin
+end;
+
+procedure TBitmap.SaveToStream(Stream: TStream);
+begin
 end;
 
 { TPicture }

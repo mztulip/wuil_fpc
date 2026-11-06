@@ -18,7 +18,7 @@ type
   TCheckBoxState = (cbUnchecked, cbChecked, cbGrayed);
   TComboBoxStyle = (csDropDown, csSimple, csDropDownList, csOwnerDrawFixed, csOwnerDrawVariable);
   TScrollStyle = (ssNone, ssHorizontal, ssVertical, ssBoth);
-  TAlignment = (taLeftJustify, taRightJustify, taCenter);
+  TAlignment = Classes.TAlignment;
 
   TLabel = class(TControl)
   private
@@ -123,6 +123,7 @@ type
   TCustomEdit = class(TWinControl)
   private
     FReadOnly: Boolean;
+    FOEMConvert: Boolean;
     FMaxLength: Integer;
     FAutoSelect: Boolean;
     FPasswordChar: Char;
@@ -131,6 +132,7 @@ type
     function GetText: string;
     procedure SetText(const Value: string);
     procedure SetReadOnly(Value: Boolean);
+    procedure SetOEMConvert(Value: Boolean);
     procedure SetPasswordChar(Value: Char);
     function GetSelStart: Integer;
     procedure SetSelStart(Value: Integer);
@@ -144,6 +146,7 @@ type
     property AutoSelect: Boolean read FAutoSelect write FAutoSelect default True;
     property BorderStyle: TBorderStyle read FBorderStyle write FBorderStyle default bsSingle;
     property MaxLength: Integer read FMaxLength write FMaxLength default 0;
+    property OEMConvert: Boolean read FOEMConvert write SetOEMConvert default False;
     property PasswordChar: Char read FPasswordChar write SetPasswordChar default #0;
     property ReadOnly: Boolean read FReadOnly write SetReadOnly default False;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
@@ -168,6 +171,7 @@ type
     property Enabled;
     property Font;
     property MaxLength;
+    property OEMConvert;
     property ParentColor;
     property ParentCtl3D;
     property ParentFont;
@@ -342,6 +346,7 @@ type
 
   TCustomComboBox = class(TWinControl)
   private
+    FCanvas: TCanvas;
     FItems: TStrings;
     FStyle: TComboBoxStyle;
     FSorted: Boolean;
@@ -354,6 +359,8 @@ type
     FOnMeasureItem: TMeasureItemEvent;
     function GetItemIndex: Integer;
     procedure SetItemIndex(Value: Integer);
+    function GetDroppedDown: Boolean;
+    procedure SetDroppedDown(Value: Boolean);
     function GetText: string;
     procedure SetText(const Value: string);
     procedure SetItems(Value: TStrings);
@@ -372,7 +379,6 @@ type
     property ItemHeight: Integer read FItemHeight write SetItemHeight;
     property MaxLength: Integer read FMaxLength write SetMaxLength default 0;
     property Items: TStrings read FItems write SetItems;
-    property ItemIndex: Integer read GetItemIndex write SetItemIndex default -1;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
     property OnDropDown: TNotifyEvent read FOnDropDown write FOnDropDown;
     property OnDrawItem: TDrawItemEvent read FOnDrawItem write FOnDrawItem;
@@ -381,6 +387,9 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure Clear;
+    property Canvas: TCanvas read FCanvas;
+    property DroppedDown: Boolean read GetDroppedDown write SetDroppedDown;
+    property ItemIndex: Integer read GetItemIndex write SetItemIndex default -1;
     property Text: string read GetText write SetText;
   end;
 
@@ -724,6 +733,7 @@ begin
   FAutoSelect := True;
   FBorderStyle := bsSingle;
   FPasswordChar := #0;
+  FOEMConvert := False;
 end;
 
 procedure TCustomEdit.CreateParams(var Params: TCreateParams);
@@ -734,6 +744,8 @@ begin
   Params.Style := WS_CHILD or WS_VISIBLE or WS_BORDER or WS_TABSTOP or ES_AUTOHSCROLL;
   if FReadOnly then
     Params.Style := Params.Style or ES_READONLY;
+  if FOEMConvert then
+    Params.Style := Params.Style or ES_OEMCONVERT;
 end;
 
 function TCustomEdit.GetText: string;
@@ -766,6 +778,16 @@ begin
     FReadOnly := Value;
     if HandleAllocated then
       SendMessage(FHandle, EM_SETREADONLY, Ord(Value), 0);
+  end;
+end;
+
+procedure TCustomEdit.SetOEMConvert(Value: Boolean);
+begin
+  if FOEMConvert <> Value then
+  begin
+    FOEMConvert := Value;
+    if HandleAllocated then
+      RecreateWnd;
   end;
 end;
 
@@ -1216,6 +1238,8 @@ constructor TCustomComboBox.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   FItems := TComboBoxStrings.Create(Self);
+  FCanvas := TControlCanvas.Create;
+  TControlCanvas(FCanvas).Control := Self;
   FWidth := 145;
   FHeight := 21;
   FStyle := csDropDown;
@@ -1227,8 +1251,23 @@ end;
 
 destructor TCustomComboBox.Destroy;
 begin
+  FCanvas.Free;
   FItems.Free;
   inherited Destroy;
+end;
+
+function TCustomComboBox.GetDroppedDown: Boolean;
+begin
+  if HandleAllocated then
+    Result := SendMessage(FHandle, $0157, 0, 0) <> 0
+  else
+    Result := False;
+end;
+
+procedure TCustomComboBox.SetDroppedDown(Value: Boolean);
+begin
+  if HandleAllocated then
+    SendMessage(FHandle, $014F, Word(Value), 0);
 end;
 
 procedure TCustomComboBox.CreateParams(var Params: TCreateParams);

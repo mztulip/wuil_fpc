@@ -11,7 +11,7 @@ type
   TBevelStyle = (bsLowered, bsRaised);
   TBevelShape = (bsBox, bsFrame, bsTopLine, bsBottomLine, bsLeftLine, bsRightLine, bsSpacer);
   TPanelBevel = (bvNone, bvLowered, bvRaised, bvSpace);
-  TAlignment = (taLeftJustify, taRightJustify, taCenter);
+  TAlignment = Classes.TAlignment;
 
   TTimer = class(TComponent)
   private
@@ -47,6 +47,34 @@ type
     property Style: TBevelStyle read FStyle write SetStyle;
     property Visible;
     property Enabled;
+  end;
+
+  TShapeType = (stRectangle, stSquare, stRoundRect, stRoundSquare, stEllipse, stCircle);
+
+  TShape = class(TGraphicControl)
+  private
+    FPen: TPen;
+    FBrush: TBrush;
+    FShape: TShapeType;
+    procedure SetBrush(Value: TBrush);
+    procedure SetPen(Value: TPen);
+    procedure SetShape(Value: TShapeType);
+  protected
+    procedure Paint; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+  published
+    property Align;
+    property Brush: TBrush read FBrush write SetBrush;
+    property DragCursor;
+    property DragMode;
+    property Enabled;
+    property ParentShowHint;
+    property Pen: TPen read FPen write SetPen;
+    property Shape: TShapeType read FShape write SetShape default stRectangle;
+    property ShowHint;
+    property Visible;
   end;
 
   TCustomPanel = class(TWinControl)
@@ -399,6 +427,74 @@ begin
 
       ReleaseDC(FParent.Handle, DC);
     end;
+  end;
+end;
+
+{ TShape }
+
+constructor TShape.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FPen := TPen.Create;
+  FBrush := TBrush.Create;
+  FShape := stRectangle;
+  FWidth := 65;
+  FHeight := 65;
+end;
+
+destructor TShape.Destroy;
+begin
+  FPen.Free;
+  FBrush.Free;
+  inherited Destroy;
+end;
+
+procedure TShape.SetBrush(Value: TBrush);
+begin
+  FBrush.Assign(Value);
+  Invalidate;
+end;
+
+procedure TShape.SetPen(Value: TPen);
+begin
+  FPen.Assign(Value);
+  Invalidate;
+end;
+
+procedure TShape.SetShape(Value: TShapeType);
+begin
+  if FShape <> Value then
+  begin
+    FShape := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TShape.Paint;
+var
+  X, Y, W, H, S: Integer;
+begin
+  Canvas.Pen := FPen;
+  Canvas.Brush := FBrush;
+  X := Pen.Width div 2;
+  Y := Pen.Width div 2;
+  W := Width - Pen.Width + 1;
+  H := Height - Pen.Width + 1;
+  if (FShape = stSquare) or (FShape = stRoundSquare) or (FShape = stCircle) then
+  begin
+    if W < H then S := W else S := H;
+    X := X + (W - S) div 2;
+    Y := Y + (H - S) div 2;
+    W := S;
+    H := S;
+  end;
+  case FShape of
+    stRectangle, stSquare:
+      Canvas.Rectangle(X, Y, X + W, Y + H);
+    stRoundRect, stRoundSquare:
+      Canvas.RoundRect(X, Y, X + W, Y + H, (W + H) div 8, (W + H) div 8);
+    stEllipse, stCircle:
+      Canvas.Ellipse(X, Y, X + W, Y + H);
   end;
 end;
 

@@ -78,6 +78,7 @@ type
     FPictureClosed: TBitmap;
     FPictureLeaf: TBitmap;
     FLinesAtRoot: Boolean;
+    FUpdateCount: Integer;
 
     FOnExpand: TOutlineNodeEvent;
     FOnCollapse: TOutlineNodeEvent;
@@ -123,6 +124,9 @@ type
     function InsertObject(Index: Longint; const Text: string; const Data: Pointer): Longint;
     procedure Delete(Index: Longint);
     procedure Clear;
+    procedure BeginUpdate;
+    procedure EndUpdate;
+    procedure SetUpdateState(Updating: Boolean);
     procedure FullExpand;
     procedure FullCollapse;
 
@@ -504,6 +508,7 @@ procedure TCustomOutline.RebuildTree;
 var
   i: Integer;
 begin
+  if FUpdateCount > 0 then Exit;
   FNodes.Clear;
   for i := 0 to FRootNodes.Count - 1 do
     AddBranch(TOutlineNode(FRootNodes[i]));
@@ -594,7 +599,10 @@ begin
     FRootNodes.Add(NewNode);
   end;
 
-  RebuildTree;
+  if FUpdateCount = 0 then
+    RebuildTree
+  else
+    FNodes.Add(NewNode);
   Result := NewNode.Index;
 end;
 
@@ -625,7 +633,10 @@ begin
       TargetList.Insert(InsertIdx + 1, NewNode)
     else
       TargetList.Add(NewNode);
-    RebuildTree;
+    if FUpdateCount = 0 then
+      RebuildTree
+    else
+      FNodes.Add(NewNode);
     Result := NewNode.Index;
   end
   else
@@ -659,7 +670,10 @@ begin
       TargetList.Insert(InsertIdx, NewNode)
     else
       TargetList.Add(NewNode);
-    RebuildTree;
+    if FUpdateCount = 0 then
+      RebuildTree
+    else
+      FNodes.Add(NewNode);
     Result := NewNode.Index;
   end
   else
@@ -700,6 +714,29 @@ begin
   FVisibleNodes.Clear;
   RowCount := 0;
   FSelectedItem := 0;
+end;
+
+procedure TCustomOutline.BeginUpdate;
+begin
+  Inc(FUpdateCount);
+end;
+
+procedure TCustomOutline.EndUpdate;
+begin
+  if FUpdateCount > 0 then
+  begin
+    Dec(FUpdateCount);
+    if FUpdateCount = 0 then
+      RebuildTree;
+  end;
+end;
+
+procedure TCustomOutline.SetUpdateState(Updating: Boolean);
+begin
+  if Updating then
+    BeginUpdate
+  else
+    EndUpdate;
 end;
 
 procedure TCustomOutline.FullExpand;

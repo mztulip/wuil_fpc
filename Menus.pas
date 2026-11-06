@@ -19,6 +19,7 @@ type
   TMenuBreak = (mbNone, mbBreak, mbBarBreak);
   TPopupAlignment = (paLeft, paRight, paCenter);
   TTrackButton = (tbRightButton, tbLeftButton);
+  TFindItemKind = (fkCommand, fkHandle, fkShortCut);
 
   TMenuItem = class;
 
@@ -60,6 +61,7 @@ type
     function IndexOf(Item: TMenuItem): Integer;
     function IndexOfId(Id: Word): Integer;
     function Find(const ACaption: string): TMenuItem;
+    function FindItem(Value: Word; Kind: TFindItemKind): TMenuItem;
     procedure Click; virtual;
     function GetHandle: HMENU;
     procedure RebuildHandle;
@@ -81,8 +83,6 @@ type
     property OnClick: TNotifyEvent read FOnClick write FOnClick;
   end;
 
-  TFindItemKind = (fkCommand, fkHandle, fkShortCut);
-
   TMenu = class(TComponent)
   protected
     FItems: TMenuItem;
@@ -91,11 +91,11 @@ type
     procedure WndProc(var Message: TMessage); virtual;
     function DispatchCommand(ACommand: Word): Boolean;
     function DispatchPopup(AHandle: HMENU): Boolean;
-    function FindItem(Value: Word; Kind: TFindItemKind): TMenuItem;
     function IsAccel(VK: Word; const Str: string): Boolean;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+    function FindItem(Value: Word; Kind: TFindItemKind): TMenuItem;
     property Items: TMenuItem read FItems;
     property Handle: HMENU read GetHandle;
     property WindowHandle: HWND read FWindowHandle write FWindowHandle;
@@ -133,6 +133,7 @@ function ShortCut(Key: Word; Shift: TShiftState): TShortCut;
 procedure ShortCutToKey(ShortCut: TShortCut; var Key: Word; var Shift: TShiftState);
 function ShortCutToText(ShortCut: TShortCut): string;
 function TextToShortCut(const Text: string): TShortCut;
+function KeyDataToShiftState(KeyData: Longint): TShiftState;
 
 function FindMenuItem(CommandId: Word): TMenuItem;
 procedure DispatchMenuCommand(CommandId: Word);
@@ -489,6 +490,11 @@ begin
   end;
 end;
 
+function TMenuItem.FindItem(Value: Word; Kind: TFindItemKind): TMenuItem;
+begin
+  Result := FindInItem(Self, Value, Kind);
+end;
+
 function TMenu.FindItem(Value: Word; Kind: TFindItemKind): TMenuItem;
 begin
   Result := FindInItem(FItems, Value, Kind);
@@ -702,6 +708,17 @@ function TextToShortCut(const Text: string): TShortCut;
 begin
   { Podstawowa konwersja }
   Result := 0;
+end;
+
+function KeyDataToShiftState(KeyData: Longint): TShiftState;
+begin
+  Result := [];
+  if GetKeyState(VK_SHIFT) < 0 then
+    Include(Result, ssShift);
+  if GetKeyState(VK_CONTROL) < 0 then
+    Include(Result, ssCtrl);
+  if (KeyData and $20000000 <> 0) or (GetKeyState(VK_MENU) < 0) then
+    Include(Result, ssAlt);
 end;
 
 initialization

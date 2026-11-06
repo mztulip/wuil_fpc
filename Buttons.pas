@@ -13,7 +13,7 @@ type
   TButtonStyle = (bsAutoDetect, bsWin31, bsNew);
   TBitBtnKind = (bkCustom, bkOK, bkCancel, bkHelp, bkYes, bkNo, bkClose, bkAbort, bkRetry, bkIgnore, bkAll);
 
-  TSpeedButton = class(TControl)
+  TSpeedButton = class(TGraphicControl)
   protected
     FGroupIndex: Integer;
     FGlyph: TBitmap;
@@ -26,7 +26,6 @@ type
     FNumGlyphs: Integer;
     FState: TButtonState;
     FStyle: TButtonStyle;
-    FCanvas: TCanvas;
     procedure SetDown(Value: Boolean);
     procedure SetGroupIndex(Value: Integer);
     procedure SetAllowAllUp(Value: Boolean);
@@ -41,7 +40,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure Click; override;
-    property Canvas: TCanvas read FCanvas;
+    property Canvas;
   published
     property AllowAllUp: Boolean read FAllowAllUp write SetAllowAllUp default False;
     property GroupIndex: Integer read FGroupIndex write SetGroupIndex default 0;
@@ -100,7 +99,6 @@ implementation
 constructor TSpeedButton.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  FCanvas := TCanvas.Create;
   FGlyph := TBitmap.Create;
   FWidth := 25;
   FHeight := 25;
@@ -117,7 +115,6 @@ end;
 destructor TSpeedButton.Destroy;
 begin
   FGlyph.Free;
-  FCanvas.Free;
   inherited Destroy;
 end;
 
@@ -252,7 +249,7 @@ begin
     DC := GetDC(FParent.Handle);
     if DC <> 0 then
     begin
-      FCanvas.Handle := DC;
+      Canvas.Handle := DC;
       try
         R.left := FLeft;
         R.top := FTop;
@@ -261,8 +258,8 @@ begin
 
         IsPressed := (FState in [bsDown, bsExclusive]);
 
-        FCanvas.Brush.Color := clBtnFace;
-        WinProcs.FillRect(DC, R, FCanvas.Brush.Handle);
+        Canvas.Brush.Color := clBtnFace;
+        WinProcs.FillRect(DC, R, Canvas.Brush.Handle);
 
         if IsPressed then
         begin
@@ -292,7 +289,7 @@ begin
         begin
           GlyphX := R.left + (FWidth - FGlyph.Width div FNumGlyphs) div 2 + Offset;
           GlyphY := R.top + (FHeight - FGlyph.Height) div 2 + Offset;
-          FGlyph.Draw(FCanvas, Rect(GlyphX, GlyphY, GlyphX + FGlyph.Width, GlyphY + FGlyph.Height));
+          FGlyph.Draw(Canvas, Rect(GlyphX, GlyphY, GlyphX + FGlyph.Width, GlyphY + FGlyph.Height));
         end;
 
         { Rysowanie podpisu }
@@ -311,7 +308,7 @@ begin
         end;
 
       finally
-        FCanvas.Handle := 0;
+        Canvas.Handle := 0;
         ReleaseDC(FParent.Handle, DC);
       end;
     end;

@@ -16,9 +16,11 @@ type
     function HasFormat(Format: Word): Boolean;
     function GetAsHandle(Format: Word): THandle;
     procedure SetAsHandle(Format: Word; Value: THandle);
-    function AsText: string;
+    function GetAsText: string;
+    procedure SetAsText(const Value: string);
     procedure SetTextBuf(Buffer: PChar);
     function GetTextBuf(Buffer: PChar; BufSize: Integer): Integer;
+    property AsText: string read GetAsText write SetAsText;
   end;
 
 function Clipboard: TClipboard;
@@ -81,7 +83,7 @@ begin
   end;
 end;
 
-function TClipboard.AsText: string;
+function TClipboard.GetAsText: string;
 var
   Data: THandle;
   P: PChar;
@@ -102,6 +104,14 @@ begin
   finally
     Close;
   end;
+end;
+
+procedure TClipboard.SetAsText(const Value: string);
+var
+  Buf: array[0..255] of Char;
+begin
+  StrPCopy(Buf, Value);
+  SetTextBuf(Buf);
 end;
 
 procedure TClipboard.SetTextBuf(Buffer: PChar);

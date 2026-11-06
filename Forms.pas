@@ -11,7 +11,6 @@ type
   TPoint = WinTypes.TPoint;
   TRect = WinTypes.TRect;
   TModalResult = Controls.TModalResult;
-  TFileExt = string;
 
 const
   mrNone     = Controls.mrNone;

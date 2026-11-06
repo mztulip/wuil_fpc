@@ -41,8 +41,7 @@ function RegEnumKey(hKey: HKey; iSubKey: Longint; lpName: LPSTR; cchName: Longin
 function DragAcceptFiles(hwnd: HWND; fAccept: BOOL): BOOL; far; external 'SHELL' index 9;
 function DragQueryFile(hDrop: HDROP; iFile: UINT; lpszFile: LPSTR; cb: UINT): UINT; far; external 'SHELL' index 11;
 procedure DragFinish(hDrop: HDROP); far; external 'SHELL' index 12;
-function DragQueryPoint(hDrop: HDROP; var ppt: TPoint): BOOL; far; external 'SHELL' index 13; overload;
-function DragQueryPoint(hDrop: HDROP; var ppt: POINT): BOOL; far; external 'SHELL' index 13; overload;
+function DragQueryPoint(hDrop: HDROP; var ppt: TPoint): BOOL; far; external 'SHELL' index 13;
 function ShellExecute(hwnd: HWND; lpszOp, lpszFile, lpszParams, lpszDir: LPCSTR; fsShowCmd: Integer): THandle; far; external 'SHELL' index 20;
 function FindExecutable(lpFile, lpDirectory, lpResult: LPCSTR): THandle; far; external 'SHELL' index 21;
 function ShellAbout(hwnd: HWND; szApp, szOtherStuff: LPCSTR; hIcon: HICON): Integer; far; external 'SHELL' index 22;
