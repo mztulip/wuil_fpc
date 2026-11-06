@@ -101,3 +101,29 @@ Biblioteka pełni rolę **obiektowego wrappera na Win16 API**:
 Praktycznie wszystkie 80+ modułów Calmiry kompiluje się już w 100% czysto pod FPC i486-win16 bez żadnych modyfikacji źródeł Calmiry!
 W module `ALIAS.PAS` kompilator zatrzymuje się na metodach `TStreamer`/`TIcon` (`LoadFromStream`/`SaveToStream`), co stanowi kolejny krok do zakończenia etapu kompilacji i przejścia do linkowania binarki `CALMIRA.EXE`.
 
+
+---
+
+## Stan na 2026-11-06: CALMIRA.exe skompilowana i zlinkowana
+
+Pełna kompilacja i linkowanie `CALMIRA.DPR` → `CALMIRA.exe` (16-bitowy NE, 21 segmentów, 0 zmian w `calmira_src/`) działa. Poprzedni wpis o `ALIAS.PAS` jest nieaktualny.
+
+### Polecenie budowania (z katalogu głównego projektu)
+```bash
+./wuil/fpc16 -Mdelphi -CX -XX -Fucalmira_src/SRC -Fucalmira_src/VCL -Fuwuil -Ficalmira_src/SRC -Ficalmira_src/VCL calmira_src/SRC/CALMIRA.DPR
+```
+Uruchomienie z `calmira_src/SRC` bez tych `-Fu` kończy się błędem `Can't find unit MiscUtil`.
+
+### Kluczowe ustalenia
+* **`-WmHUGE` jest wymagane** (dodane do `wuil/fpc16`): w modelu LARGE dane 80+ modułów przekraczają 64 KB DGROUP. W HUGE każdy moduł ma własny segment danych FAR.
+* **`-Wh`**: każda procedura w osobnej sekcji; wlink pakuje kod do segmentów ≤56 KB.
+* RTL Win16 musi być przebudowany z: `-Cp80486 -Op80486 -Wh -WmHUGE -CX -XX`.
+* Poprawki kompilatora (`fpc-source`):
+  * `compiler/link.pas`: `get_wlib_record_size` zwraca `page_size` (a nie `nb_pages`), co naprawia wlib dla dużych bibliotek.
+  * `compiler/x86/hlcgx86.pas`: trampolina importu DLL używa far jump (`S_FAR`) dla win16.
+  * `rtl/win16/system.pp`: dodane `_FPC_ParamStrA`, plus rozszerzenia typów i stałych Win16.
+
+### Następne kroki
+1. Uruchomić `CALMIRA.exe` w `win16Loader` (Bochs/QEMU) i sprawdzić start, okno, pętlę komunikatów.
+2. Dołączyć zasoby (`.res`, np. `wrc`) do exe.
+3. Poprawiać błędy czasu wykonania w WUIL.
