@@ -1,0 +1,14 @@
+#!/bin/bash
+# bindres - dolacza zasoby (.RES i .DFM w formacie RES16) do CALMIRA.exe przez Open Watcom wrc.
+# Uzycie: wuil/bindres [exe]   (domyslnie calmira_src/SRC/CALMIRA.exe)
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+EXE="${1:-$ROOT_DIR/calmira_src/SRC/CALMIRA.exe}"
+WATCOM="${WATCOM:-/tmp/watcom}"
+export WATCOM
+ALL=/tmp/calmira_all.res
+: > "$ALL"
+for f in "$ROOT_DIR"/calmira_src/SRC/*.RES "$ROOT_DIR"/calmira_src/SRC/*.DFM \
+         "$ROOT_DIR"/calmira_src/VCL/*.RES "$ROOT_DIR"/calmira_src/VCL/*.DFM; do
+  [ -f "$f" ] && cat "$f" >> "$ALL"
+done
+"$WATCOM/binl64/wrc" -q -bt=windows -ad "$ALL" "$EXE"
