@@ -346,8 +346,38 @@ end;
 { TForm }
 
 constructor TForm.Create(AOwner: TComponent);
+var
+  M: TMethod;
 begin
   CreateNew(AOwner);
+  { Brak strumieniowania DFM: zdarzenia formularza wiazemy po nazwach metod
+    publikowanych (konwencja Delphi: FormCreate, FormDestroy, ...). }
+  M.Data := Self;
+  if not Assigned(FOnCreate) then
+  begin
+    M.Code := MethodAddress('FormCreate');
+    if M.Code <> nil then FOnCreate := TNotifyEvent(M);
+  end;
+  if not Assigned(FOnDestroy) then
+  begin
+    M.Code := MethodAddress('FormDestroy');
+    if M.Code <> nil then FOnDestroy := TNotifyEvent(M);
+  end;
+  if not Assigned(FOnShow) then
+  begin
+    M.Code := MethodAddress('FormShow');
+    if M.Code <> nil then FOnShow := TNotifyEvent(M);
+  end;
+  if not Assigned(FOnClose) then
+  begin
+    M.Code := MethodAddress('FormClose');
+    if M.Code <> nil then FOnClose := TCloseEvent(M);
+  end;
+  if not Assigned(FOnPaint) then
+  begin
+    M.Code := MethodAddress('FormPaint');
+    if M.Code <> nil then FOnPaint := TNotifyEvent(M);
+  end;
   DoCreate;
 end;
 
