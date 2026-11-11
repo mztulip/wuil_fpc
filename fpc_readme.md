@@ -128,3 +128,23 @@ Uruchomienie z `calmira_src/SRC` bez tych `-Fu` kończy się błędem `Can't fin
 1. Uruchomić `CALMIRA.exe` w `win16Loader` (Bochs/QEMU) i sprawdzić start, okno, pętlę komunikatów.
 2. Dołączyć zasoby (`.res`, np. `wrc`) do exe.
 3. Poprawiać błędy czasu wykonania w WUIL.
+
+
+## Budowanie krok po kroku (od zera)
+
+1. Repo kompilatora/RTL: `fpc-source/` (`git@github.com:mztulip/FPCSource.git`, galaz `main`).
+   Zawiera poprawki win16: `pstatmnt.pas` (assembler/register), `typinfo.pp` (`SetOrdProp` dla setterow 8/16 bit),
+   `rtl/i8086/setjump.inc` (`fpc_setjmp` = import `KERNEL.Catch`, bez tego kazdy `raise` konczy sie #GP).
+2. Kompilator `fpc-source/compiler/ppcross8086` (po zmianach w `compiler/` przebuduj go).
+3. Przebuduj RTL po kazdej zmianie w `rtl/` (7 s):
+   ```bash
+   cd fpc-source/rtl/win16
+   make OS_TARGET=win16 CPU_TARGET=i8086 PP=$PWD/../../compiler/ppcross8086 \
+        OPT="-Cp80486 -Op80486 -Wh -WmHUGE"
+   ```
+4. Open Watcom (`/opt/watcom`: `wlink`, `wrc`) musi byc zainstalowany.
+5. Kompilacja Calmiry (z katalogu glownego repo): komenda z sekcji wyzej (`./wuil/fpc16 ... CALMIRA.DPR`).
+6. Dolaczenie formularzy/zasobow: `./wuil/bindres` (bez tego EXE nie ma DFM).
+7. Test: skopiuj EXE do obrazu dysku (`mcopy -o -i calmira.img@@1M calmira_src/SRC/CALMIRA.exe ::CALMIRA/CALMIRA.EXE`),
+   uruchom `win16Loader/tools/qemu_headless.py --fd floppy.img --hd calmira.img --boot c --mem 64 w60 pshot`
+   (potrzebne `--mem 64`; przy 16 MB brakuje selektorow/pamieci).
