@@ -160,9 +160,9 @@ W wyniku powstanie 16-bitowy plik wykonywalny **`hello_gui.exe`** w formacie **N
 ### Kompilacja powłoki Calmira II:
 ```bash
 ./fpc16 -Mdelphi -CX -XX \
-    -Fucalmira_src/SRC -Fucalmira_src/VCL -Fuwuil \
-    -Ficalmira_src/SRC -Ficalmira_src/VCL \
-    calmira_src/SRC/CALMIRA.DPR
+    -FuSRC -FuVCL -Fuwuil \
+    -FiSRC -FiVCL \
+    SRC/CALMIRA.DPR
 ```
 
 ---

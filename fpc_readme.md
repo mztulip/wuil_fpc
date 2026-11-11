@@ -110,7 +110,7 @@ Pełna kompilacja i linkowanie `CALMIRA.DPR` → `CALMIRA.exe` (16-bitowy NE, 21
 
 ### Polecenie budowania (z katalogu głównego projektu)
 ```bash
-./wuil/fpc16 -Mdelphi -CX -XX -Fucalmira_src/SRC -Fucalmira_src/VCL -Fuwuil -Ficalmira_src/SRC -Ficalmira_src/VCL calmira_src/SRC/CALMIRA.DPR
+./wuil/fpc16 -Mdelphi -CX -XX -FuSRC -FuVCL -Fuwuil -FiSRC -FiVCL SRC/CALMIRA.DPR
 ```
 Uruchomienie z `calmira_src/SRC` bez tych `-Fu` kończy się błędem `Can't find unit MiscUtil`.
 
@@ -132,6 +132,9 @@ Uruchomienie z `calmira_src/SRC` bez tych `-Fu` kończy się błędem `Can't fin
 
 ## Budowanie krok po kroku (od zera)
 
+Uklad: `calmira_src/` to osobne repo (zrodla Calmiry), a `wuil/` i `fpc-source/` w nim to submoduly.
+Wszystkie komendy ponizej uruchamiaj z `calmira_src/`.
+
 1. Repo kompilatora/RTL: `fpc-source/` (`git@github.com:mztulip/FPCSource.git`, galaz `main`).
    Zawiera poprawki win16: `pstatmnt.pas` (assembler/register), `typinfo.pp` (`SetOrdProp` dla setterow 8/16 bit),
    `rtl/i8086/setjump.inc` (`fpc_setjmp` = import `KERNEL.Catch`, bez tego kazdy `raise` konczy sie #GP).
@@ -143,8 +146,8 @@ Uruchomienie z `calmira_src/SRC` bez tych `-Fu` kończy się błędem `Can't fin
         OPT="-Cp80486 -Op80486 -Wh -WmHUGE"
    ```
 4. Open Watcom (`/opt/watcom`: `wlink`, `wrc`) musi byc zainstalowany.
-5. Kompilacja Calmiry (z katalogu glownego repo): komenda z sekcji wyzej (`./wuil/fpc16 ... CALMIRA.DPR`).
+5. Kompilacja Calmiry (z katalogu `calmira_src/`): komenda z sekcji wyzej (`./wuil/fpc16 ... CALMIRA.DPR`).
 6. Dolaczenie formularzy/zasobow: `./wuil/bindres` (bez tego EXE nie ma DFM).
-7. Test: skopiuj EXE do obrazu dysku (`mcopy -o -i calmira.img@@1M calmira_src/SRC/CALMIRA.exe ::CALMIRA/CALMIRA.EXE`),
-   uruchom `win16Loader/tools/qemu_headless.py --fd floppy.img --hd calmira.img --boot c --mem 64 w60 pshot`
+7. Test: skopiuj EXE do obrazu dysku (`mcopy -o -i calmira.img@@1M SRC/CALMIRA.exe ::CALMIRA/CALMIRA.EXE`),
+   uruchom `../win16Loader/tools/qemu_headless.py --fd floppy.img --hd calmira.img --boot c --mem 64 w60 pshot`
    (potrzebne `--mem 64`; przy 16 MB brakuje selektorow/pamieci).
