@@ -606,4 +606,7 @@ begin
   end;
 end;
 
+initialization
+  RegisterClasses([TDrawGrid, TStringGrid]);
+
 end.

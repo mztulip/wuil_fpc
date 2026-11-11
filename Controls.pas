@@ -51,7 +51,7 @@ type
   TPoint = WinTypes.TPoint;
   TRect = WinTypes.TRect;
   TCaption = type ShortString;
-  TCursor = Integer;
+  TCursor = -32768..32767;
   TMouseButton = (mbLeft, mbRight, mbMiddle);
   TShiftStateEnum = Classes.TShiftStateEnum;
   TShiftState = Classes.TShiftState;
@@ -157,6 +157,9 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+    procedure SetParentComponent(Value: TComponent); override;
+    function GetParentComponent: TComponent; override;
+    function HasParent: Boolean; override;
     procedure SetBounds(ALeft, ATop, AWidth, AHeight: Integer); virtual;
     function Perform(Msg: Word; WParam: Word; LParam: Longint): Longint;
     procedure Invalidate; virtual;
@@ -171,19 +174,20 @@ type
     procedure EndDrag(Drop: Boolean); virtual;
     function ClientToScreen(const Point: TPoint): TPoint;
     function ScreenToClient(const Point: TPoint): TPoint;
-    property Align: TAlign read FAlign write SetAlign default alNone;
     property BoundsRect: TRect read GetBoundsRect write SetBoundsRect;
     property ClientRect: TRect read GetClientRect;
     property ClientOrigin: TPoint read GetClientOrigin;
+    property Parent: TWinControl read FParent write SetParent;
+    property Showing: Boolean read GetShowing;
+  published
     property ClientWidth: Integer read GetClientWidth write SetClientWidth;
     property ClientHeight: Integer read GetClientHeight write SetClientHeight;
-    property Parent: TWinControl read FParent write SetParent;
+    property Align: TAlign read FAlign write SetAlign default alNone;
     property Left: Integer read FLeft write SetLeft;
     property Top: Integer read FTop write SetTop;
     property Width: Integer read FWidth write SetWidth;
     property Height: Integer read FHeight write SetHeight;
     property Visible: Boolean read FVisible write SetVisible;
-    property Showing: Boolean read GetShowing;
     property Enabled: Boolean read FEnabled write SetEnabled;
     property Caption: string read FCaption write SetCaption;
     property Color: TColor read FColor write FColor;
@@ -245,6 +249,7 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+    procedure GetChildren(Proc: TGetChildProc; Root: TComponent); override;
     procedure CreateHandle; virtual;
     procedure DestroyHandle; virtual;
     procedure RecreateWnd; virtual;
@@ -253,10 +258,6 @@ type
     function CanFocus: Boolean;
     function Focused: Boolean;
     function HandleAllocated: Boolean;
-    property TabOrder: TTabOrder read FTabOrder write FTabOrder default 0;
-    property TabStop: Boolean read FTabStop write FTabStop default False;
-    property OnEnter: TNotifyEvent read FOnEnter write FOnEnter;
-    property OnExit: TNotifyEvent read FOnExit write FOnExit;
     procedure SetBounds(ALeft, ATop, AWidth, AHeight: Integer); override;
     procedure Invalidate; override;
     procedure Repaint; override;
@@ -271,6 +272,11 @@ type
     property Handle: HWND read FHandle;
     property Controls[Index: Integer]: TControl read GetControl;
     property ControlCount: Integer read GetControlCount;
+  published
+    property TabOrder: TTabOrder read FTabOrder write FTabOrder default 0;
+    property TabStop: Boolean read FTabStop write FTabStop default False;
+    property OnEnter: TNotifyEvent read FOnEnter write FOnEnter;
+    property OnExit: TNotifyEvent read FOnExit write FOnExit;
   end;
 
   TCustomControl = class(TWinControl)
@@ -735,6 +741,30 @@ begin
     if FParent <> nil then
       FParent.FControls.Add(Self);
   end;
+end;
+
+procedure TControl.SetParentComponent(Value: TComponent);
+begin
+  if Value is TWinControl then
+    SetParent(TWinControl(Value));
+end;
+
+function TControl.GetParentComponent: TComponent;
+begin
+  Result := FParent;
+end;
+
+function TControl.HasParent: Boolean;
+begin
+  Result := FParent <> nil;
+end;
+
+procedure TWinControl.GetChildren(Proc: TGetChildProc; Root: TComponent);
+var
+  I: Integer;
+begin
+  for I := 0 to FControls.Count - 1 do
+    Proc(TControl(FControls[I]));
 end;
 
 procedure TControl.Click;
@@ -1300,7 +1330,46 @@ begin
   DestroyHandle;
 end;
 
+const
+  CursorIdents: array[0..18] of record V: Integer; N: string[12]; end = (
+    (V: 0; N: 'crDefault'), (V: -1; N: 'crNone'), (V: -2; N: 'crArrow'),
+    (V: -3; N: 'crCross'), (V: -4; N: 'crIBeam'), (V: -5; N: 'crSize'),
+    (V: -6; N: 'crSizeNESW'), (V: -7; N: 'crSizeNS'), (V: -8; N: 'crSizeNWSE'),
+    (V: -9; N: 'crSizeWE'), (V: -10; N: 'crUpArrow'), (V: -11; N: 'crHourGlass'),
+    (V: -12; N: 'crDrag'), (V: -13; N: 'crNoDrop'), (V: -14; N: 'crHSplit'),
+    (V: -15; N: 'crVSplit'), (V: -16; N: 'crMultiDrag'), (V: -17; N: 'crSQLWait'),
+    (V: -18; N: 'crNo'));
+
+function CursorToIdent(Int: Longint; var Ident: string): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 0 to High(CursorIdents) do
+    if CursorIdents[I].V = Int then
+    begin
+      Ident := CursorIdents[I].N;
+      Result := True;
+      Exit;
+    end;
+end;
+
+function IdentToCursor(const Ident: string; var Int: Longint): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 0 to High(CursorIdents) do
+    if CompareText(CursorIdents[I].N, Ident) = 0 then
+    begin
+      Int := CursorIdents[I].V;
+      Result := True;
+      Exit;
+    end;
+end;
+
 initialization
+  RegisterIntegerConsts(TypeInfo(TCursor), @IdentToCursor, @CursorToIdent);
 
 finalization
   if ControlList <> nil then

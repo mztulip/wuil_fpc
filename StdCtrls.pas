@@ -25,6 +25,8 @@ type
     FAlignment: TAlignment;
     FAutoSize: Boolean;
     FWordWrap: Boolean;
+    FShowAccelChar: Boolean;
+    FFocusControl: TWinControl;
     procedure SetAlignment(Value: TAlignment);
     procedure SetWordWrap(Value: Boolean);
   protected
@@ -35,6 +37,8 @@ type
     property Alignment: TAlignment read FAlignment write SetAlignment default taLeftJustify;
     property AutoSize: Boolean read FAutoSize write FAutoSize default True;
     property WordWrap: Boolean read FWordWrap write SetWordWrap default False;
+    property ShowAccelChar: Boolean read FShowAccelChar write FShowAccelChar default True;
+    property FocusControl: TWinControl read FFocusControl write FFocusControl;
     property Caption;
     property Color;
     property Font;
@@ -120,8 +124,12 @@ type
     property Visible;
   end;
 
+  TEditCharCase = (ecNormal, ecUpperCase, ecLowerCase);
+
   TCustomEdit = class(TWinControl)
   private
+    FCharCase: TEditCharCase;
+    FHideSelection: Boolean;
     FReadOnly: Boolean;
     FOEMConvert: Boolean;
     FMaxLength: Integer;
@@ -144,6 +152,8 @@ type
     procedure CreateParams(var Params: TCreateParams); override;
     procedure Change; virtual;
     property AutoSelect: Boolean read FAutoSelect write FAutoSelect default True;
+    property CharCase: TEditCharCase read FCharCase write FCharCase default ecNormal;
+    property HideSelection: Boolean read FHideSelection write FHideSelection default True;
     property BorderStyle: TBorderStyle read FBorderStyle write FBorderStyle default bsSingle;
     property MaxLength: Integer read FMaxLength write FMaxLength default 0;
     property OEMConvert: Boolean read FOEMConvert write SetOEMConvert default False;
@@ -163,6 +173,8 @@ type
   TEdit = class(TCustomEdit)
   published
     property AutoSelect;
+    property CharCase;
+    property HideSelection;
     property BorderStyle;
     property Color;
     property Ctl3D;
@@ -487,6 +499,7 @@ begin
   FCaption := 'Label';
   FAlignment := taLeftJustify;
   FAutoSize := True;
+  FShowAccelChar := True;
   FWordWrap := False;
 end;
 
@@ -731,6 +744,7 @@ begin
   FReadOnly := False;
   FMaxLength := 0;
   FAutoSelect := True;
+  FHideSelection := True;
   FBorderStyle := bsSingle;
   FPasswordChar := #0;
   FOEMConvert := False;
@@ -1531,5 +1545,8 @@ begin
   if Assigned(FOnChange) then
     FOnChange(Self);
 end;
+
+initialization
+  RegisterClasses([TLabel, TButton, TCheckBox, TRadioButton, TGroupBox, TEdit, TListBox, TComboBox, TMemo]);
 
 end.

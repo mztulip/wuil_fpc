@@ -36,8 +36,8 @@ type
     function PokeDataLines(const Item: string; Lines: TStrings): Boolean; virtual;
 
     property Connected: Boolean read FConnected;
-    property ServiceApplication: string read FServiceApplication write FServiceApplication;
   published
+    property ServiceApplication: string read FServiceApplication write FServiceApplication;
     property ConnectMode: TDdeConnectMode read FConnectMode write FConnectMode default ddeManual;
     property DdeService: string read FDdeService write FDdeService;
     property DdeTopic: string read FDdeTopic write FDdeTopic;

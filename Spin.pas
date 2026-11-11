@@ -242,4 +242,7 @@ begin
   if Key <> #0 then inherited KeyPress(Key);
 end;
 
+initialization
+  RegisterClasses([TSpinButton, TSpinEdit]);
+
 end.

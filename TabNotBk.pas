@@ -44,4 +44,7 @@ begin
   inherited Destroy;
 end;
 
+initialization
+  RegisterClasses([TTabbedNotebook]);
+
 end.

@@ -65,4 +65,7 @@ begin
   end;
 end;
 
+initialization
+  RegisterClasses([TTabSet]);
+
 end.

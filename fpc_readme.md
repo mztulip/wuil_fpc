@@ -119,9 +119,10 @@ Uruchomienie z `calmira_src/SRC` bez tych `-Fu` kończy się błędem `Can't fin
 * **`-Wh`**: każda procedura w osobnej sekcji; wlink pakuje kod do segmentów ≤56 KB.
 * RTL Win16 musi być przebudowany z: `-Cp80486 -Op80486 -Wh -WmHUGE -CX -XX`.
 * Poprawki kompilatora (`fpc-source`):
+  * `compiler/i8086/n8086ld.pas`: jawne ładowanie segmentu tabel `resourcestring` (`RESSTR_*`) w modelu pamięci HUGE (`-WmHUGE`), gdzie segment danych danego modułu różni się od `DS`.
   * `compiler/link.pas`: `get_wlib_record_size` zwraca `page_size` (a nie `nb_pages`), co naprawia wlib dla dużych bibliotek.
   * `compiler/x86/hlcgx86.pas`: trampolina importu DLL używa far jump (`S_FAR`) dla win16.
-  * `rtl/win16/system.pp`: dodane `_FPC_ParamStrA`, plus rozszerzenia typów i stałych Win16.
+  * `rtl/win16/system.pp`: dodane `_FPC_ParamStrA` z 16-bitowym indeksem `ParamStrA(l: Integer): AnsiString`, plus rozszerzenia typów i stałych Win16.
 
 ### Następne kroki
 1. Uruchomić `CALMIRA.exe` w `win16Loader` (Bochs/QEMU) i sprawdzić start, okno, pętlę komunikatów.

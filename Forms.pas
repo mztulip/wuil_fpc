@@ -52,6 +52,10 @@ type
 
   TCloseAction = (caNone, caHide, caFree, caMinimize);
   TCloseEvent = procedure(Sender: TObject; var Action: TCloseAction) of object;
+  TCloseQueryEvent = procedure(Sender: TObject; var CanClose: Boolean) of object;
+  TFormStyle = (fsNormal, fsMDIChild, fsMDIForm, fsStayOnTop);
+  TBorderIcon = (biSystemMenu, biMinimize, biMaximize);
+  TBorderIcons = set of TBorderIcon;
 
   TDesigner = class(TObject)
   public
@@ -77,6 +81,14 @@ type
     FOnShow: TNotifyEvent;
     FOnClose: TCloseEvent;
     FOnPaint: TNotifyEvent;
+    FOnHide: TNotifyEvent;
+    FOnCloseQuery: TCloseQueryEvent;
+    FFormStyle: TFormStyle;
+    FBorderIcons: TBorderIcons;
+    FKeyPreview: Boolean;
+    FScaled: Boolean;
+    FPixelsPerInch: Integer;
+    FTextHeight: Integer;
     procedure SetBorderStyle(Value: TFormBorderStyle);
     procedure SetWindowState(Value: TWindowState);
     procedure SetIcon(Value: TIcon);
@@ -99,12 +111,13 @@ type
     procedure Close;
     procedure Release;
     procedure WndProc(var Message: TMessage); override;
-    property ActiveControl: TWinControl read FActiveControl write SetActiveControl;
     property Canvas: TCanvas read FCanvas;
+    property Designer: TDesigner read FDesigner write FDesigner;
+  published
+    property ActiveControl: TWinControl read FActiveControl write SetActiveControl;
     property Icon: TIcon read FIcon write SetIcon;
     property Menu: TMainMenu read FMenu write SetMenu;
     property BorderStyle: TFormBorderStyle read FBorderStyle write SetBorderStyle;
-    property Designer: TDesigner read FDesigner write FDesigner;
     property WindowState: TWindowState read FWindowState write SetWindowState;
     property Position: TFormPosition read FPosition write FPosition;
     property ModalResult: TModalResult read FModalResult write FModalResult;
@@ -113,6 +126,14 @@ type
     property OnShow: TNotifyEvent read FOnShow write FOnShow;
     property OnClose: TCloseEvent read FOnClose write FOnClose;
     property OnPaint: TNotifyEvent read FOnPaint write FOnPaint;
+    property OnHide: TNotifyEvent read FOnHide write FOnHide;
+    property OnCloseQuery: TCloseQueryEvent read FOnCloseQuery write FOnCloseQuery;
+    property FormStyle: TFormStyle read FFormStyle write FFormStyle default fsNormal;
+    property BorderIcons: TBorderIcons read FBorderIcons write FBorderIcons default [biSystemMenu, biMinimize, biMaximize];
+    property KeyPreview: Boolean read FKeyPreview write FKeyPreview default False;
+    property Scaled: Boolean read FScaled write FScaled default True;
+    property PixelsPerInch: Integer read FPixelsPerInch write FPixelsPerInch;
+    property TextHeight: Integer read FTextHeight write FTextHeight;
   end;
 
   TMessageEvent = procedure(var Msg: TMsg; var Handled: Boolean) of object;
@@ -343,6 +364,82 @@ begin
   end;
 end;
 
+
+{ --- Wczytywanie DFM z zasobow RT_RCDATA --- }
+
+type
+  TDfmHelper = class
+    procedure SetName(Reader: TReader; Component: TComponent; var aName: string);
+    procedure ReaderError(Reader: TReader; const Message: string; var Handled: Boolean);
+    procedure PropNotFound(Reader: TReader; Instance: TPersistent;
+      var PropName: string; IsPath: Boolean; var Handled, Skip: Boolean);
+  end;
+
+procedure TDfmHelper.SetName(Reader: TReader; Component: TComponent; var aName: string);
+begin
+  OutputDebugString(PChar('DFM name ' + aName + ': ' + Component.ClassName));
+end;
+
+procedure TDfmHelper.ReaderError(Reader: TReader; const Message: string; var Handled: Boolean);
+begin
+  OutputDebugString(PChar('DFM error: ' + Message));
+  Handled := True;
+end;
+
+procedure TDfmHelper.PropNotFound(Reader: TReader; Instance: TPersistent;
+  var PropName: string; IsPath: Boolean; var Handled, Skip: Boolean);
+begin
+  OutputDebugString(PChar('DFM brak wlasciwosci: ' + Instance.ClassName + '.' + PropName));
+  Handled := True;
+  Skip := True;
+end;
+
+{ Czyta zasoby DFM klasy AClass i jej przodkow (od najstarszego) do Instance.
+  Zasob RT_RCDATA o nazwie klasy (wielkimi literami) pobieramy przez API Win16. }
+procedure LoadFormResources(Instance: TComponent; AClass: TClass);
+var
+  Name: array[0..63] of Char;
+  Res: HRSRC;
+  Mem: THandle;
+  P: Pointer;
+  Size: Longint;
+  MS: TMemoryStream;
+  Rd: TReader;
+  H: TDfmHelper;
+begin
+  if (AClass = nil) or (AClass = TForm) or (AClass = TComponent) then Exit;
+  LoadFormResources(Instance, AClass.ClassParent);
+  StrPCopy(Name, UpperCase(AClass.ClassName));
+  Res := WinProcs.FindResource(HInstance, Name, RT_RCDATA);
+  if Res = 0 then Exit;
+  Size := SizeofResource(HInstance, Res);
+  Mem := LoadResource(HInstance, Res);
+  if (Mem = 0) or (Size <= 0) then Exit;
+  P := LockResource(Mem);
+  OutputDebugString(PChar('DFM> ' + AClass.ClassName));
+  MS := TMemoryStream.Create;
+  H := TDfmHelper.Create;
+  try
+    MS.Write(P^, Size);
+    MS.Position := 0;
+    Rd := TReader.Create(MS, 1024);
+    try
+      Rd.OnSetName := H.SetName;
+      Rd.OnError := H.ReaderError;
+      Rd.OnPropertyNotFound := H.PropNotFound;
+      Rd.ReadRootComponent(Instance);
+    finally
+      Rd.Free;
+    end;
+  finally
+    H.Free;
+    MS.Free;
+    UnlockResource(Mem);
+    FreeResource(Mem);
+  end;
+  OutputDebugString(PChar('DFM< ' + AClass.ClassName));
+end;
+
 { TForm }
 
 constructor TForm.Create(AOwner: TComponent);
@@ -350,7 +447,10 @@ var
   M: TMethod;
 begin
   CreateNew(AOwner);
-  { Brak strumieniowania DFM: zdarzenia formularza wiazemy po nazwach metod
+  { Wczytanie komponentow z zasobu DFM (RT_RCDATA) klasy formularza i jej przodkow. }
+  if ClassType <> TForm then
+    LoadFormResources(Self, Self.ClassType);
+  { Zapas - wiazanie zdarzen po nazwach metod: zdarzenia formularza wiazemy po nazwach metod
     publikowanych (konwencja Delphi: FormCreate, FormDestroy, ...). }
   M.Data := Self;
   if not Assigned(FOnCreate) then
@@ -391,6 +491,10 @@ begin
   FBorderStyle := bsSizeable;
   FPosition := poDesigned;
   FModalResult := mrNone;
+  FFormStyle := fsNormal;
+  FBorderIcons := [biSystemMenu, biMinimize, biMaximize];
+  FScaled := True;
+  FPixelsPerInch := 96;
   FWidth := 320;
   FHeight := 240;
   FCaption := 'Form';
@@ -469,6 +573,7 @@ procedure TForm.Hide;
 begin
   if HandleAllocated then
     ShowWindow(FHandle, SW_HIDE);
+  if Assigned(FOnHide) then FOnHide(Self);
 end;
 
 function TForm.ShowModal: Integer;

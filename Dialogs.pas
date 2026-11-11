@@ -662,4 +662,7 @@ begin
   Result := S;
 end;
 
+initialization
+  RegisterClasses([TOpenDialog, TSaveDialog, TColorDialog, TFontDialog]);
+
 end.

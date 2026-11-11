@@ -862,4 +862,7 @@ begin
   end;
 end;
 
+initialization
+  RegisterClasses([TOutline]);
+
 end.

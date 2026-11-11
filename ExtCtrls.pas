@@ -187,9 +187,14 @@ type
     property OnMouseMove;
   end;
 
+  TSectionEvent = procedure(Sender: TObject; ASection, AWidth: Integer) of object;
+
   THeader = class(TControl)
   private
     FSections: TStrings;
+    FTabOrder: Integer;
+    FOnSized: TSectionEvent;
+    FOnSizing: TSectionEvent;
     FSectionWidths: TList;
     function GetSectionWidth(Index: Integer): Integer;
     procedure SetSectionWidth(Index: Integer; Value: Integer);
@@ -199,8 +204,9 @@ type
     property Sections: TStrings read FSections;
     property SectionWidth[Index: Integer]: Integer read GetSectionWidth write SetSectionWidth;
   published
-    property Visible;
-    property Enabled;
+    property TabOrder: Integer read FTabOrder write FTabOrder default 0;
+    property OnSized: TSectionEvent read FOnSized write FOnSized;
+    property OnSizing: TSectionEvent read FOnSizing write FOnSizing;
   end;
 
   TRadioGroup = class(TGroupBox)
@@ -1012,6 +1018,9 @@ begin
     Dec(Rect.Bottom);
   end;
 end;
+
+initialization
+  RegisterClasses([TTimer, TBevel, TShape, TPanel, TPage, TNotebook, TImage, THeader, TRadioGroup]);
 
 finalization
   if TimerList <> nil then

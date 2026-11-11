@@ -8,7 +8,7 @@ uses
   WinTypes, WinProcs, Win31, Classes, SysUtils;
 
 type
-  TColor = LongInt;
+  TColor = -$7FFFFFFF-1..$7FFFFFFF;
   TRect = WinTypes.RECT;
   TPoint = WinTypes.POINT;
 
@@ -87,6 +87,7 @@ type
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
     property Handle: HFONT read FHandle;
+  published
     property Name: string read FName write SetName;
     property Size: Integer read FSize write SetSize;
     property Height: Integer read GetHeight write SetHeight;
@@ -109,6 +110,7 @@ type
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
     property Handle: HPEN read FHandle;
+  published
     property Color: TColor read FColor write SetColor;
     property Width: Integer read FWidth write SetWidth;
     property Style: TPenStyle read FStyle write SetStyle;
@@ -130,6 +132,7 @@ type
     procedure Assign(Source: TPersistent); override;
     property Handle: HBRUSH read FHandle;
     property Bitmap: TBitmap read FBitmap write SetBitmap;
+  published
     property Color: TColor read FColor write SetColor;
     property Style: TBrushStyle read FStyle write SetStyle;
   end;
@@ -437,6 +440,20 @@ begin
   S := ColorToString(TColor(Color));
   if CompareText(S, Ident) = 0 then
     Result := True;
+end;
+
+function ColorToIdentStream(Int: Longint; var Ident: string): Boolean;
+var
+  S: string;
+begin
+  S := ColorToString(TColor(Int));
+  Result := (Length(S) > 0) and (S[1] <> '$');
+  if Result then Ident := S;
+end;
+
+function IdentToColorStream(const Ident: string; var Int: Longint): Boolean;
+begin
+  Result := IdentToColor(Ident, Int);
 end;
 
 function Point(AX, AY: Integer): TPoint;
@@ -1130,7 +1147,12 @@ end;
 
 procedure TIcon.Assign(Source: TPersistent);
 begin
-  if Source is TIcon then
+  if Source = nil then
+  begin
+    SetHandle(0);
+    FMemoryImage.Clear;
+  end
+  else if Source is TIcon then
   begin
     SetHandle(CopyIcon(HInstance, TIcon(Source).Handle));
     FMemoryImage.Clear;
@@ -1305,7 +1327,13 @@ end;
 
 procedure TBitmap.Assign(Source: TPersistent);
 begin
-  if Source is TBitmap then
+  if Source = nil then
+  begin
+    SetHandle(0);
+    FWidth := 0;
+    FHeight := 0;
+  end
+  else if Source is TBitmap then
   begin
     SetWidth(TBitmap(Source).Width);
     SetHeight(TBitmap(Source).Height);
@@ -1407,7 +1435,12 @@ end;
 
 procedure TPicture.Assign(Source: TPersistent);
 begin
-  if Source is TPicture then
+  if Source = nil then
+  begin
+    Bitmap.Assign(nil);
+    Icon.Assign(nil);
+  end
+  else if Source is TPicture then
   begin
     if TPicture(Source).Graphic is TIcon then
       Icon.Assign(TPicture(Source).Icon)
@@ -1426,5 +1459,8 @@ procedure TPicture.LoadFromFile(const Filename: string);
 begin
   { Opcjonalne ładowanie z pliku }
 end;
+
+initialization
+  RegisterIntegerConsts(TypeInfo(TColor), @IdentToColorStream, @ColorToIdentStream);
 
 end.

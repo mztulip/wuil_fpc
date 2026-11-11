@@ -414,4 +414,7 @@ begin
   end;
 end;
 
+initialization
+  RegisterClasses([TSpeedButton, TBitBtn]);
+
 end.

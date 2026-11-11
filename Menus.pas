@@ -50,6 +50,8 @@ type
     procedure SetShortCut(Value: TShortCut);
     function GetCount: Integer;
     function GetItem(Index: Integer): TMenuItem;
+    function GetShortCutText: string;
+    procedure SetShortCutText(const Value: string);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -63,6 +65,10 @@ type
     function Find(const ACaption: string): TMenuItem;
     function FindItem(Value: Word; Kind: TFindItemKind): TMenuItem;
     procedure Click; virtual;
+    procedure GetChildren(Proc: TGetChildProc; Root: TComponent); override;
+    procedure SetParentComponent(Value: TComponent); override;
+    function GetParentComponent: TComponent; override;
+    function HasParent: Boolean; override;
     function GetHandle: HMENU;
     procedure RebuildHandle;
     property Command: Word read FCommand write FCommand;
@@ -72,6 +78,7 @@ type
     property Parent: TMenuItem read FParent;
   published
     property Caption: string read FCaption write SetCaption;
+    property ShortCutText: string read GetShortCutText write SetShortCutText stored False;
     property Checked: Boolean read FChecked write SetChecked;
     property Enabled: Boolean read FEnabled write SetEnabled;
     property Visible: Boolean read FVisible write SetVisible;
@@ -96,6 +103,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     function FindItem(Value: Word; Kind: TFindItemKind): TMenuItem;
+    procedure GetChildren(Proc: TGetChildProc; Root: TComponent); override;
     property Items: TMenuItem read FItems;
     property Handle: HMENU read GetHandle;
     property WindowHandle: HWND read FWindowHandle write FWindowHandle;
@@ -112,13 +120,16 @@ type
     FAlignment: TPopupAlignment;
     FAutoPopup: Boolean;
     FTrackButton: TTrackButton;
+    FHelpContext: Longint;
     FOnPopup: TNotifyEvent;
   public
     constructor Create(AOwner: TComponent); override;
     procedure Popup(X, Y: Integer); virtual;
-    property Alignment: TPopupAlignment read FAlignment write FAlignment;
-    property AutoPopup: Boolean read FAutoPopup write FAutoPopup;
-    property TrackButton: TTrackButton read FTrackButton write FTrackButton;
+  published
+    property Alignment: TPopupAlignment read FAlignment write FAlignment default paLeft;
+    property AutoPopup: Boolean read FAutoPopup write FAutoPopup default True;
+    property HelpContext: Longint read FHelpContext write FHelpContext default 0;
+    property TrackButton: TTrackButton read FTrackButton write FTrackButton default tbRightButton;
     property OnPopup: TNotifyEvent read FOnPopup write FOnPopup;
   end;
 
@@ -442,6 +453,50 @@ begin
   end;
 end;
 
+procedure TMenu.GetChildren(Proc: TGetChildProc; Root: TComponent);
+var
+  I: Integer;
+begin
+  for I := 0 to FItems.Count - 1 do
+    Proc(FItems[I]);
+end;
+
+procedure TMenuItem.GetChildren(Proc: TGetChildProc; Root: TComponent);
+var
+  I: Integer;
+begin
+  for I := 0 to Count - 1 do
+    Proc(Items[I]);
+end;
+
+procedure TMenuItem.SetParentComponent(Value: TComponent);
+begin
+  if Value is TMenu then
+    TMenu(Value).Items.Add(Self)
+  else if Value is TMenuItem then
+    TMenuItem(Value).Add(Self);
+end;
+
+function TMenuItem.GetParentComponent: TComponent;
+begin
+  Result := FParent;
+end;
+
+function TMenuItem.HasParent: Boolean;
+begin
+  Result := FParent <> nil;
+end;
+
+function TMenuItem.GetShortCutText: string;
+begin
+  Result := ShortCutToText(FShortCut);
+end;
+
+procedure TMenuItem.SetShortCutText(const Value: string);
+begin
+  { tylko do strumieniowania DFM; skrot ustawia ShortCut }
+end;
+
 procedure TMenuItem.SetShortCut(Value: TShortCut);
 begin
   if FShortCut <> Value then
@@ -723,6 +778,7 @@ end;
 
 initialization
 
+  RegisterClasses([TMenuItem, TMainMenu, TPopupMenu]);
 finalization
   if MenuItemList <> nil then
   begin
