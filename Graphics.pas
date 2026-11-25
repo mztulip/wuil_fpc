@@ -148,6 +148,7 @@ type
     FBrush: TBrush;
     FAutoFreeDC: Boolean;
     FPenPos: TPoint;
+    function GetHandle: HDC;
     procedure SetHandle(Value: HDC);
     function GetPixel(X, Y: Integer): TColor;
     procedure SetPixel(X, Y: Integer; Value: TColor);
@@ -178,7 +179,7 @@ type
     procedure CopyRect(const Dest: TRect; Source: TCanvas; const SourceRect: TRect);
     procedure PolyLine(const Points: array of TPoint);
     property Pixels[X, Y: Integer]: TColor read GetPixel write SetPixel;
-    property Handle: HDC read FHandle write SetHandle;
+    property Handle: HDC read GetHandle write SetHandle;
     property Font: TFont read FFont write SetFont;
     property Pen: TPen read FPen write SetPen;
     property Brush: TBrush read FBrush write SetBrush;
@@ -227,10 +228,13 @@ type
   TBitmap = class(TGraphic)
   private
     FHandle: HBITMAP;
+    FOldBitmap: HBITMAP;
     FCanvas: TCanvas;
     FWidth, FHeight: Integer;
     function GetCanvas: TCanvas;
     procedure SetHandle(Value: HBITMAP);
+    procedure EnsureBitmap;
+    procedure ReleaseCanvas;
     procedure ReadData(Stream: TStream);
     procedure WriteData(Stream: TStream);
   protected
@@ -838,6 +842,24 @@ begin
   inherited Destroy;
 end;
 
+function TCanvas.GetHandle: HDC;
+begin
+  Result := FHandle;
+  if Result <> 0 then
+  begin
+    if FFont.Handle <> 0 then
+      SelectObject(Result, FFont.Handle);
+    SetTextColor(Result, ColorToRGB(FFont.Color));
+    if FBrush.Style = bsClear then
+      SetBkMode(Result, TRANSPARENT)
+    else
+    begin
+      SetBkMode(Result, OPAQUE);
+      SetBkColor(Result, ColorToRGB(FBrush.Color));
+    end;
+  end;
+end;
+
 procedure TCanvas.SetHandle(Value: HDC);
 begin
   if (FHandle <> 0) and (FHandle <> Value) then
@@ -1295,6 +1317,7 @@ constructor TBitmap.Create;
 begin
   inherited Create;
   FHandle := 0;
+  FOldBitmap := 0;
   FWidth := 0;
   FHeight := 0;
   FCanvas := nil;
@@ -1302,10 +1325,44 @@ end;
 
 destructor TBitmap.Destroy;
 begin
-  FCanvas.Free;
+  ReleaseCanvas;
   if FHandle <> 0 then
     DeleteObject(FHandle);
   inherited Destroy;
+end;
+
+procedure TBitmap.ReleaseCanvas;
+var
+  DC: HDC;
+begin
+  if FCanvas <> nil then
+  begin
+    DC := FCanvas.FHandle;
+    if DC <> 0 then
+    begin
+      if FOldBitmap <> 0 then
+      begin
+        SelectObject(DC, FOldBitmap);
+        FOldBitmap := 0;
+      end;
+      FCanvas.Handle := 0;
+      DeleteDC(DC);
+    end;
+    FCanvas.Free;
+    FCanvas := nil;
+  end;
+end;
+
+procedure TBitmap.EnsureBitmap;
+var
+  DC: HDC;
+begin
+  if (FHandle = 0) and (FWidth > 0) and (FHeight > 0) then
+  begin
+    DC := GetDC(0);
+    FHandle := CreateCompatibleBitmap(DC, FWidth, FHeight);
+    ReleaseDC(0, DC);
+  end;
 end;
 
 function TBitmap.GetEmpty: Boolean;
@@ -1315,6 +1372,7 @@ end;
 
 procedure TBitmap.FreeImage;
 begin
+  ReleaseCanvas;
   if FHandle <> 0 then
   begin
     DeleteObject(FHandle);
@@ -1334,12 +1392,22 @@ end;
 
 procedure TBitmap.SetHeight(Value: Integer);
 begin
-  FHeight := Value;
+  if FHeight <> Value then
+  begin
+    if FHandle <> 0 then
+      FreeImage;
+    FHeight := Value;
+  end;
 end;
 
 procedure TBitmap.SetWidth(Value: Integer);
 begin
-  FWidth := Value;
+  if FWidth <> Value then
+  begin
+    if FHandle <> 0 then
+      FreeImage;
+    FWidth := Value;
+  end;
 end;
 
 procedure TBitmap.SetHandle(Value: HBITMAP);
@@ -1348,6 +1416,7 @@ var
 begin
   if FHandle <> Value then
   begin
+    ReleaseCanvas;
     if FHandle <> 0 then
       DeleteObject(FHandle);
     FHandle := Value;
@@ -1369,13 +1438,18 @@ function TBitmap.GetCanvas: TCanvas;
 var
   DC: HDC;
 begin
+  EnsureBitmap;
   if FCanvas = nil then
   begin
     FCanvas := TCanvas.Create;
     DC := CreateCompatibleDC(0);
     FCanvas.Handle := DC;
     if FHandle <> 0 then
-      SelectObject(DC, FHandle);
+      FOldBitmap := SelectObject(DC, FHandle);
+  end
+  else if (FHandle <> 0) and (FOldBitmap = 0) and (FCanvas.FHandle <> 0) then
+  begin
+    FOldBitmap := SelectObject(FCanvas.FHandle, FHandle);
   end;
   Result := FCanvas;
 end;
@@ -1384,6 +1458,7 @@ procedure TBitmap.Assign(Source: TPersistent);
 var
   DC, SrcDC, DstDC: HDC;
   NewBmp, OldSrc, OldDst: HBITMAP;
+  SrcBmp: TBitmap;
 begin
   if Source = nil then
   begin
@@ -1393,18 +1468,26 @@ begin
   end
   else if Source is TBitmap then
   begin
-    if (TBitmap(Source).FHandle <> 0) and (TBitmap(Source).Width > 0) and (TBitmap(Source).Height > 0) then
+    SrcBmp := TBitmap(Source);
+    if (SrcBmp.FHandle <> 0) and (SrcBmp.Width > 0) and (SrcBmp.Height > 0) then
     begin
       DC := GetDC(0);
-      SrcDC := CreateCompatibleDC(DC);
       DstDC := CreateCompatibleDC(DC);
-      NewBmp := CreateCompatibleBitmap(DC, TBitmap(Source).Width, TBitmap(Source).Height);
-      OldSrc := SelectObject(SrcDC, TBitmap(Source).FHandle);
+      NewBmp := CreateCompatibleBitmap(DC, SrcBmp.Width, SrcBmp.Height);
       OldDst := SelectObject(DstDC, NewBmp);
-      BitBlt(DstDC, 0, 0, TBitmap(Source).Width, TBitmap(Source).Height, SrcDC, 0, 0, SRCCOPY);
-      SelectObject(SrcDC, OldSrc);
+      if (SrcBmp.FCanvas <> nil) and (SrcBmp.FCanvas.FHandle <> 0) then
+      begin
+        BitBlt(DstDC, 0, 0, SrcBmp.Width, SrcBmp.Height, SrcBmp.FCanvas.FHandle, 0, 0, SRCCOPY);
+      end
+      else
+      begin
+        SrcDC := CreateCompatibleDC(DC);
+        OldSrc := SelectObject(SrcDC, SrcBmp.FHandle);
+        BitBlt(DstDC, 0, 0, SrcBmp.Width, SrcBmp.Height, SrcDC, 0, 0, SRCCOPY);
+        SelectObject(SrcDC, OldSrc);
+        DeleteDC(SrcDC);
+      end;
       SelectObject(DstDC, OldDst);
-      DeleteDC(SrcDC);
       DeleteDC(DstDC);
       ReleaseDC(0, DC);
       SetHandle(NewBmp);
@@ -1426,17 +1509,24 @@ var
   OldBmp: HBITMAP;
   W, H: Integer;
 begin
-  if (ACanvas <> nil) and (ACanvas.Handle <> 0) and (FHandle <> 0) then
+  if (ACanvas <> nil) and (ACanvas.FHandle <> 0) and (FHandle <> 0) then
   begin
     W := Rect.Right - Rect.Left;
     H := Rect.Bottom - Rect.Top;
     if (W <= 0) or (W > FWidth) then W := FWidth;
     if (H <= 0) or (H > FHeight) then H := FHeight;
-    MemDC := CreateCompatibleDC(ACanvas.Handle);
-    OldBmp := SelectObject(MemDC, FHandle);
-    BitBlt(ACanvas.Handle, Rect.Left, Rect.Top, W, H, MemDC, 0, 0, SRCCOPY);
-    SelectObject(MemDC, OldBmp);
-    DeleteDC(MemDC);
+    if (FCanvas <> nil) and (FCanvas.FHandle <> 0) then
+    begin
+      BitBlt(ACanvas.FHandle, Rect.Left, Rect.Top, W, H, FCanvas.FHandle, 0, 0, SRCCOPY);
+    end
+    else
+    begin
+      MemDC := CreateCompatibleDC(ACanvas.FHandle);
+      OldBmp := SelectObject(MemDC, FHandle);
+      BitBlt(ACanvas.FHandle, Rect.Left, Rect.Top, W, H, MemDC, 0, 0, SRCCOPY);
+      SelectObject(MemDC, OldBmp);
+      DeleteDC(MemDC);
+    end;
   end;
 end;
 

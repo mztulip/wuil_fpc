@@ -711,6 +711,7 @@ var
   DC: HDC;
   PS: TPaintStruct;
   IconH: HICON;
+  WR: TRect;
 begin
   case Message.Msg of
     WM_PAINT:
@@ -766,6 +767,13 @@ begin
           SIZE_MINIMIZED: FWindowState := wsMinimized;
           SIZE_MAXIMIZED: FWindowState := wsMaximized;
           SIZE_RESTORED:  FWindowState := wsNormal;
+        end;
+        if (FWindowState <> wsMinimized) and HandleAllocated then
+        begin
+          GetWindowRect(FHandle, WR);
+          FWidth := WR.Right - WR.Left;
+          FHeight := WR.Bottom - WR.Top;
+          Resize;
         end;
       end;
   end;

@@ -1139,9 +1139,17 @@ begin
 end;
 
 procedure TWinControl.CreateHandle;
+var
+  I: Integer;
 begin
   if not HandleAllocated then
+  begin
     CreateWnd;
+    if HandleAllocated then
+      for I := 0 to FControls.Count - 1 do
+        if TObject(FControls[I]) is TWinControl then
+          TWinControl(FControls[I]).CreateHandle;
+  end;
 end;
 
 procedure TWinControl.DestroyHandle;

@@ -645,6 +645,7 @@ begin
       FCanvas.Handle := DC;
     try
       Paint;
+      PaintControls(DC, nil);
     finally
       if FCanvas <> nil then
         FCanvas.Handle := 0;

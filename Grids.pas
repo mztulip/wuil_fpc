@@ -30,7 +30,7 @@ type
   TSelectCellEvent = procedure(Sender: TObject; ACol, ARow: Longint; var CanSelect: Boolean) of object;
   TDrawCellEvent = procedure(Sender: TObject; ACol, ARow: Longint; ARect: TRect; State: TGridDrawState) of object;
 
-  TCustomGrid = class(TWinControl)
+  TCustomGrid = class(TCustomControl)
   private
     FColCount, FRowCount: Longint;
     FFixedCols, FFixedRows: Integer;
@@ -40,7 +40,6 @@ type
     FScrollBars: TScrollStyle;
     FCol, FRow: Longint;
     FLeftCol, FTopRow: Longint;
-    FCanvas: TCanvas;
     FDefaultDrawing: Boolean;
     FOnSelectCell: TSelectCellEvent;
     FOnDrawCell: TDrawCellEvent;
@@ -90,7 +89,7 @@ type
     function CellRect(ACol, ARow: Longint): TRect;
     procedure MouseToCell(X, Y: Integer; var ACol, ARow: Longint);
     function MouseCoord(X, Y: Integer): TGridCoord;
-    property Canvas: TCanvas read FCanvas;
+    property Canvas;
     property Col: Longint read FCol write SetCol;
     property Row: Longint read FRow write SetRow;
     property ColWidths[Index: Longint]: Integer read GetColWidth write SetColWidth;
@@ -181,7 +180,6 @@ begin
   FDefaultDrawing := True;
   FOptions := [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine];
   FScrollBars := ssBoth;
-  FCanvas := TCanvas.Create;
   Color := clWindow;
   Width := 300;
   Height := 150;
@@ -189,7 +187,6 @@ end;
 
 destructor TCustomGrid.Destroy;
 begin
-  FCanvas.Free;
   inherited Destroy;
 end;
 
@@ -441,72 +438,62 @@ end;
 
 procedure TCustomGrid.Paint;
 var
-  DC: HDC;
-  PS: PAINTSTRUCT;
   C, R: Longint;
   CRect: TRect;
   State: TGridDrawState;
   VisCols, VisRows: Integer;
 begin
-  DC := BeginPaint(FHandle, PS);
-  try
-    FCanvas.Handle := DC;
+  Canvas.Brush.Color := Color;
+  Canvas.FillRect(ClientRect);
 
-    FCanvas.Brush.Color := Color;
-    FCanvas.FillRect(ClientRect);
+  VisCols := GetVisibleColCount;
+  VisRows := GetVisibleRowCount;
 
-    VisCols := GetVisibleColCount;
-    VisRows := GetVisibleRowCount;
-
-    for R := 0 to VisRows - 1 do
+  for R := 0 to VisRows - 1 do
+  begin
+    for C := 0 to VisCols - 1 do
     begin
-      for C := 0 to VisCols - 1 do
+      if (C < FColCount) and (R < FRowCount) then
       begin
-        if (C < FColCount) and (R < FRowCount) then
+        CRect := CellRect(C, R);
+        State := [];
+        if (C < FFixedCols) or (R < FFixedRows) then
+          Include(State, gdFixed);
+        if (C = FCol) and (R = FRow) then
         begin
-          CRect := CellRect(C, R);
-          State := [];
-          if (C < FFixedCols) or (R < FFixedRows) then
-            Include(State, gdFixed);
-          if (C = FCol) and (R = FRow) then
+          Include(State, gdSelected);
+          Include(State, gdFocused);
+        end;
+
+        if FDefaultDrawing then
+        begin
+          if gdFixed in State then
+            Canvas.Brush.Color := clBtnFace
+          else if gdSelected in State then
+            Canvas.Brush.Color := clHighlight
+          else
+            Canvas.Brush.Color := Color;
+          Canvas.FillRect(CRect);
+        end;
+
+        DrawCell(C, R, CRect, State);
+
+        if (goVertLine in FOptions) or (goHorzLine in FOptions) then
+        begin
+          Canvas.Pen.Color := clBtnShadow;
+          if goVertLine in FOptions then
           begin
-            Include(State, gdSelected);
-            Include(State, gdFocused);
+            Canvas.MoveTo(CRect.Right, CRect.Top);
+            Canvas.LineTo(CRect.Right, CRect.Bottom);
           end;
-
-          if FDefaultDrawing then
+          if goHorzLine in FOptions then
           begin
-            if gdFixed in State then
-              FCanvas.Brush.Color := clBtnFace
-            else if gdSelected in State then
-              FCanvas.Brush.Color := clHighlight
-            else
-              FCanvas.Brush.Color := Color;
-            FCanvas.FillRect(CRect);
-          end;
-
-          DrawCell(C, R, CRect, State);
-
-          if (goVertLine in FOptions) or (goHorzLine in FOptions) then
-          begin
-            FCanvas.Pen.Color := clBtnShadow;
-            if goVertLine in FOptions then
-            begin
-              FCanvas.MoveTo(CRect.Right, CRect.Top);
-              FCanvas.LineTo(CRect.Right, CRect.Bottom);
-            end;
-            if goHorzLine in FOptions then
-            begin
-              FCanvas.MoveTo(CRect.Left, CRect.Bottom);
-              FCanvas.LineTo(CRect.Right, CRect.Bottom);
-            end;
+            Canvas.MoveTo(CRect.Left, CRect.Bottom);
+            Canvas.LineTo(CRect.Right, CRect.Bottom);
           end;
         end;
       end;
     end;
-  finally
-    FCanvas.Handle := 0;
-    EndPaint(FHandle, PS);
   end;
 end;
 
@@ -602,7 +589,7 @@ begin
   begin
     S := GetCells(ACol, ARow);
     if S <> '' then
-      FCanvas.TextOut(ARect.Left + 2, ARect.Top + 2, S);
+      Canvas.TextOut(ARect.Left + 2, ARect.Top + 2, S);
   end;
 end;
 

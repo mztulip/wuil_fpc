@@ -235,6 +235,7 @@ end;
 procedure TSpeedButton.Paint;
 var
   DC: HDC;
+  OwnDC: Boolean;
   R: RECT;
   TopColor, BottomColor: TColor;
   IsPressed: Boolean;
@@ -244,92 +245,100 @@ var
   TextSize: LongInt;
   TextW, TextH, GlyphW: Integer;
 begin
-  if (FParent <> nil) and FParent.HandleAllocated then
+  OwnDC := False;
+  DC := Canvas.Handle;
+  if DC = 0 then
   begin
+    if (FParent = nil) or not FParent.HandleAllocated then Exit;
     DC := GetDC(FParent.Handle);
-    if DC <> 0 then
+    if DC = 0 then Exit;
+    OwnDC := True;
+    OffsetWindowOrg(DC, -FLeft, -FTop);
+    Canvas.Handle := DC;
+  end;
+  try
+    R.left := 0;
+    R.top := 0;
+    R.right := FWidth;
+    R.bottom := FHeight;
+
+    IsPressed := (FState in [bsDown, bsExclusive]);
+
+    Canvas.Brush.Style := bsSolid;
+    Canvas.Brush.Color := clBtnFace;
+    WinProcs.FillRect(DC, R, Canvas.Brush.Handle);
+
+    if IsPressed then
     begin
-      Canvas.Handle := DC;
-      try
-        R.left := FLeft;
-        R.top := FTop;
-        R.right := FLeft + FWidth;
-        R.bottom := FTop + FHeight;
+      TopColor := clBtnShadow;
+      BottomColor := clBtnHighlight;
+      Offset := 1;
+    end
+    else
+    begin
+      TopColor := clBtnHighlight;
+      BottomColor := clBtnShadow;
+      Offset := 0;
+    end;
 
-        IsPressed := (FState in [bsDown, bsExclusive]);
+    { Ramka wypukła / wklęsła }
+    SelectObject(DC, CreatePen(PS_SOLID, 1, ColorToRGB(TopColor)));
+    WinProcs.MoveTo(DC, R.left, R.bottom - 1);
+    WinProcs.LineTo(DC, R.left, R.top);
+    WinProcs.LineTo(DC, R.right - 1, R.top);
+    DeleteObject(SelectObject(DC, CreatePen(PS_SOLID, 1, ColorToRGB(BottomColor))));
+    WinProcs.LineTo(DC, R.right - 1, R.bottom - 1);
+    WinProcs.LineTo(DC, R.left, R.bottom - 1);
+    DeleteObject(SelectObject(DC, GetStockObject(BLACK_PEN)));
 
-        Canvas.Brush.Color := clBtnFace;
-        WinProcs.FillRect(DC, R, Canvas.Brush.Handle);
-
-        if IsPressed then
-        begin
-          TopColor := clBtnShadow;
-          BottomColor := clBtnHighlight;
-          Offset := 1;
-        end
-        else
-        begin
-          TopColor := clBtnHighlight;
-          BottomColor := clBtnShadow;
-          Offset := 0;
-        end;
-
-        { Ramka wypukła / wklęsła }
-        SelectObject(DC, CreatePen(PS_SOLID, 1, ColorToRGB(TopColor)));
-        WinProcs.MoveTo(DC, R.left, R.bottom - 1);
-        WinProcs.LineTo(DC, R.left, R.top);
-        WinProcs.LineTo(DC, R.right - 1, R.top);
-        DeleteObject(SelectObject(DC, CreatePen(PS_SOLID, 1, ColorToRGB(BottomColor))));
-        WinProcs.LineTo(DC, R.right - 1, R.bottom - 1);
-        WinProcs.LineTo(DC, R.left, R.bottom - 1);
-        DeleteObject(SelectObject(DC, GetStockObject(BLACK_PEN)));
-
-        { Rysowanie glifu i podpisu }
-        if (FGlyph <> nil) and not FGlyph.Empty then
-        begin
-          GlyphW := FGlyph.Width div FNumGlyphs;
-          if Length(FCaption) > 0 then
-          begin
-            SetBkMode(DC, TRANSPARENT);
-            SetTextColor(DC, ColorToRGB(FFont.Color));
-            if FFont.Handle <> 0 then
-              SelectObject(DC, FFont.Handle);
-            TextSize := GetTextExtent(DC, @FCaption[1], Length(FCaption));
-            TextW := Loword(TextSize);
-            TextH := Hiword(TextSize);
-            GlyphX := R.left + (FWidth - (GlyphW + 4 + TextW)) div 2 + Offset;
-            if GlyphX < R.left + 3 then GlyphX := R.left + 3;
-            GlyphY := R.top + (FHeight - FGlyph.Height) div 2 + Offset;
-            FGlyph.Draw(Canvas, Rect(GlyphX, GlyphY, GlyphX + GlyphW, GlyphY + FGlyph.Height));
-            TextX := GlyphX + GlyphW + 4;
-            TextY := R.top + (FHeight - TextH) div 2 + Offset;
-            WinProcs.TextOut(DC, TextX, TextY, @FCaption[1], Length(FCaption));
-          end
-          else
-          begin
-            GlyphX := R.left + (FWidth - GlyphW) div 2 + Offset;
-            GlyphY := R.top + (FHeight - FGlyph.Height) div 2 + Offset;
-            FGlyph.Draw(Canvas, Rect(GlyphX, GlyphY, GlyphX + GlyphW, GlyphY + FGlyph.Height));
-          end;
-        end
-        else if Length(FCaption) > 0 then
-        begin
-          SetBkMode(DC, TRANSPARENT);
-          SetTextColor(DC, ColorToRGB(FFont.Color));
-          if FFont.Handle <> 0 then
-            SelectObject(DC, FFont.Handle);
-          TextSize := GetTextExtent(DC, @FCaption[1], Length(FCaption));
-          TextW := Loword(TextSize);
-          TextH := Hiword(TextSize);
-          TextX := R.left + (FWidth - TextW) div 2 + Offset;
-          TextY := R.top + (FHeight - TextH) div 2 + Offset;
-          WinProcs.TextOut(DC, TextX, TextY, @FCaption[1], Length(FCaption));
-        end;
-
-      finally
-        Canvas.Handle := 0;
-        ReleaseDC(FParent.Handle, DC);
+    { Rysowanie glifu i podpisu }
+    if (FGlyph <> nil) and not FGlyph.Empty then
+    begin
+      GlyphW := FGlyph.Width div FNumGlyphs;
+      if Length(FCaption) > 0 then
+      begin
+        SetBkMode(DC, TRANSPARENT);
+        SetTextColor(DC, ColorToRGB(FFont.Color));
+        if FFont.Handle <> 0 then
+          SelectObject(DC, FFont.Handle);
+        TextSize := GetTextExtent(DC, @FCaption[1], Length(FCaption));
+        TextW := Loword(TextSize);
+        TextH := Hiword(TextSize);
+        GlyphX := (FWidth - (GlyphW + 4 + TextW)) div 2 + Offset;
+        if GlyphX < 3 then GlyphX := 3;
+        GlyphY := (FHeight - FGlyph.Height) div 2 + Offset;
+        FGlyph.Draw(Canvas, Rect(GlyphX, GlyphY, GlyphX + GlyphW, GlyphY + FGlyph.Height));
+        TextX := GlyphX + GlyphW + 4;
+        TextY := (FHeight - TextH) div 2 + Offset;
+        WinProcs.TextOut(DC, TextX, TextY, @FCaption[1], Length(FCaption));
+      end
+      else
+      begin
+        GlyphX := (FWidth - GlyphW) div 2 + Offset;
+        GlyphY := (FHeight - FGlyph.Height) div 2 + Offset;
+        FGlyph.Draw(Canvas, Rect(GlyphX, GlyphY, GlyphX + GlyphW, GlyphY + FGlyph.Height));
       end;
+    end
+    else if Length(FCaption) > 0 then
+    begin
+      SetBkMode(DC, TRANSPARENT);
+      SetTextColor(DC, ColorToRGB(FFont.Color));
+      if FFont.Handle <> 0 then
+        SelectObject(DC, FFont.Handle);
+      TextSize := GetTextExtent(DC, @FCaption[1], Length(FCaption));
+      TextW := Loword(TextSize);
+      TextH := Hiword(TextSize);
+      TextX := (FWidth - TextW) div 2 + Offset;
+      TextY := (FHeight - TextH) div 2 + Offset;
+      WinProcs.TextOut(DC, TextX, TextY, @FCaption[1], Length(FCaption));
+    end;
+
+    Canvas.Brush.Style := bsClear;
+  finally
+    if OwnDC then
+    begin
+      Canvas.Handle := 0;
+      ReleaseDC(FParent.Handle, DC);
     end;
   end;
 end;
