@@ -231,7 +231,10 @@ type
     FWidth, FHeight: Integer;
     function GetCanvas: TCanvas;
     procedure SetHandle(Value: HBITMAP);
+    procedure ReadData(Stream: TStream);
+    procedure WriteData(Stream: TStream);
   protected
+    procedure DefineProperties(Filer: TFiler); override;
     function GetEmpty: Boolean; override;
     function GetHeight: Integer; override;
     function GetWidth: Integer; override;
@@ -1378,6 +1381,9 @@ begin
 end;
 
 procedure TBitmap.Assign(Source: TPersistent);
+var
+  DC, SrcDC, DstDC: HDC;
+  NewBmp, OldSrc, OldDst: HBITMAP;
 begin
   if Source = nil then
   begin
@@ -1387,9 +1393,28 @@ begin
   end
   else if Source is TBitmap then
   begin
-    SetWidth(TBitmap(Source).Width);
-    SetHeight(TBitmap(Source).Height);
-    { Kopiowanie uchwytu lub danych }
+    if (TBitmap(Source).FHandle <> 0) and (TBitmap(Source).Width > 0) and (TBitmap(Source).Height > 0) then
+    begin
+      DC := GetDC(0);
+      SrcDC := CreateCompatibleDC(DC);
+      DstDC := CreateCompatibleDC(DC);
+      NewBmp := CreateCompatibleBitmap(DC, TBitmap(Source).Width, TBitmap(Source).Height);
+      OldSrc := SelectObject(SrcDC, TBitmap(Source).FHandle);
+      OldDst := SelectObject(DstDC, NewBmp);
+      BitBlt(DstDC, 0, 0, TBitmap(Source).Width, TBitmap(Source).Height, SrcDC, 0, 0, SRCCOPY);
+      SelectObject(SrcDC, OldSrc);
+      SelectObject(DstDC, OldDst);
+      DeleteDC(SrcDC);
+      DeleteDC(DstDC);
+      ReleaseDC(0, DC);
+      SetHandle(NewBmp);
+    end
+    else
+    begin
+      SetHandle(0);
+      FWidth := 0;
+      FHeight := 0;
+    end;
   end
   else
     inherited Assign(Source);
@@ -1399,24 +1424,98 @@ procedure TBitmap.Draw(ACanvas: TCanvas; const Rect: TRect);
 var
   MemDC: HDC;
   OldBmp: HBITMAP;
+  W, H: Integer;
 begin
   if (ACanvas <> nil) and (ACanvas.Handle <> 0) and (FHandle <> 0) then
   begin
+    W := Rect.Right - Rect.Left;
+    H := Rect.Bottom - Rect.Top;
+    if (W <= 0) or (W > FWidth) then W := FWidth;
+    if (H <= 0) or (H > FHeight) then H := FHeight;
     MemDC := CreateCompatibleDC(ACanvas.Handle);
     OldBmp := SelectObject(MemDC, FHandle);
-    BitBlt(ACanvas.Handle, Rect.Left, Rect.Top, FWidth, FHeight, MemDC, 0, 0, SRCCOPY);
+    BitBlt(ACanvas.Handle, Rect.Left, Rect.Top, W, H, MemDC, 0, 0, SRCCOPY);
     SelectObject(MemDC, OldBmp);
     DeleteDC(MemDC);
   end;
 end;
 
 procedure TBitmap.LoadFromResourceName(Instance: THandle; const ResName: string);
+var
+  Buf: array[0..63] of Char;
 begin
-  SetHandle(LoadBitmap(Instance, PChar(ResName)));
+  StrPLCopy(Buf, ResName, 63);
+  SetHandle(LoadBitmap(Instance, Buf));
+end;
+
+procedure TBitmap.DefineProperties(Filer: TFiler);
+begin
+  inherited DefineProperties(Filer);
+  Filer.DefineBinaryProperty('Data', ReadData, WriteData, not Empty);
+end;
+
+procedure TBitmap.ReadData(Stream: TStream);
+var
+  StartPos, DataSize: LongInt;
+  Sig: array[0..1] of Char;
+begin
+  StartPos := Stream.Position;
+  if Stream.Size - StartPos < 14 then Exit;
+  Stream.Read(Sig, 2);
+  if (Sig[0] = 'B') and (Sig[1] = 'M') then
+  begin
+    Stream.Position := StartPos;
+    LoadFromStream(Stream);
+  end
+  else
+  begin
+    { Delphi 1.0 DFM TBitmap.Data zaczyna sie 4-bajtowym rozmiarem przed 'BM' }
+    Stream.Position := StartPos;
+    Stream.Read(DataSize, SizeOf(DataSize));
+    if (DataSize > 14) and (Stream.Size - Stream.Position >= 14) then
+      LoadFromStream(Stream);
+  end;
+end;
+
+procedure TBitmap.WriteData(Stream: TStream);
+begin
+  SaveToStream(Stream);
 end;
 
 procedure TBitmap.LoadFromStream(Stream: TStream);
+var
+  FileHdr: TBitmapFileHeader;
+  DataLen: LongInt;
+  Buf: PChar;
+  DC: HDC;
+  H: HBITMAP;
+  BitsOffset: LongInt;
 begin
+  if Stream.Read(FileHdr, SizeOf(FileHdr)) <> SizeOf(FileHdr) then Exit;
+  if FileHdr.bfType <> $4D42 then Exit; { 'BM' }
+  DataLen := Stream.Size - Stream.Position;
+  if (DataLen < SizeOf(TBitmapInfoHeader)) or (DataLen > 65000) then Exit;
+  GetMem(Buf, DataLen);
+  try
+    if Stream.Read(Buf^, DataLen) = DataLen then
+    begin
+      BitsOffset := FileHdr.bfOffBits - SizeOf(FileHdr);
+      if (BitsOffset >= SizeOf(TBitmapInfoHeader)) and (BitsOffset < DataLen) then
+      begin
+        DC := GetDC(0);
+        try
+          H := CreateDIBitmap(DC, PBitmapInfoHeader(Buf)^, CBM_INIT,
+            Buf + BitsOffset, PBitmapInfo(Buf)^, DIB_RGB_COLORS);
+          if H <> 0 then
+            SetHandle(H);
+        finally
+          ReleaseDC(0, DC);
+        end;
+      end;
+    end;
+  finally
+    FreeMem(Buf, DataLen);
+  end;
 end;
 
 procedure TBitmap.SaveToStream(Stream: TStream);

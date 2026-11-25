@@ -242,7 +242,7 @@ var
   GlyphX, GlyphY: Integer;
   Offset: Integer;
   TextSize: LongInt;
-  TextW, TextH: Integer;
+  TextW, TextH, GlyphW: Integer;
 begin
   if (FParent <> nil) and FParent.HandleAllocated then
   begin
@@ -284,16 +284,35 @@ begin
         WinProcs.LineTo(DC, R.left, R.bottom - 1);
         DeleteObject(SelectObject(DC, GetStockObject(BLACK_PEN)));
 
-        { Rysowanie glifu }
+        { Rysowanie glifu i podpisu }
         if (FGlyph <> nil) and not FGlyph.Empty then
         begin
-          GlyphX := R.left + (FWidth - FGlyph.Width div FNumGlyphs) div 2 + Offset;
-          GlyphY := R.top + (FHeight - FGlyph.Height) div 2 + Offset;
-          FGlyph.Draw(Canvas, Rect(GlyphX, GlyphY, GlyphX + FGlyph.Width, GlyphY + FGlyph.Height));
-        end;
-
-        { Rysowanie podpisu }
-        if Length(FCaption) > 0 then
+          GlyphW := FGlyph.Width div FNumGlyphs;
+          if Length(FCaption) > 0 then
+          begin
+            SetBkMode(DC, TRANSPARENT);
+            SetTextColor(DC, ColorToRGB(FFont.Color));
+            if FFont.Handle <> 0 then
+              SelectObject(DC, FFont.Handle);
+            TextSize := GetTextExtent(DC, @FCaption[1], Length(FCaption));
+            TextW := Loword(TextSize);
+            TextH := Hiword(TextSize);
+            GlyphX := R.left + (FWidth - (GlyphW + 4 + TextW)) div 2 + Offset;
+            if GlyphX < R.left + 3 then GlyphX := R.left + 3;
+            GlyphY := R.top + (FHeight - FGlyph.Height) div 2 + Offset;
+            FGlyph.Draw(Canvas, Rect(GlyphX, GlyphY, GlyphX + GlyphW, GlyphY + FGlyph.Height));
+            TextX := GlyphX + GlyphW + 4;
+            TextY := R.top + (FHeight - TextH) div 2 + Offset;
+            WinProcs.TextOut(DC, TextX, TextY, @FCaption[1], Length(FCaption));
+          end
+          else
+          begin
+            GlyphX := R.left + (FWidth - GlyphW) div 2 + Offset;
+            GlyphY := R.top + (FHeight - FGlyph.Height) div 2 + Offset;
+            FGlyph.Draw(Canvas, Rect(GlyphX, GlyphY, GlyphX + GlyphW, GlyphY + FGlyph.Height));
+          end;
+        end
+        else if Length(FCaption) > 0 then
         begin
           SetBkMode(DC, TRANSPARENT);
           SetTextColor(DC, ColorToRGB(FFont.Color));
