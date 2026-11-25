@@ -129,9 +129,9 @@ type
     procedure SetWidth(Value: Integer);
     procedure SetHeight(Value: Integer);
     function GetShowing: Boolean; virtual;
-    procedure SetVisible(Value: Boolean);
+    procedure SetVisible(Value: Boolean); virtual;
     procedure SetEnabled(Value: Boolean);
-    procedure SetCaption(const Value: string);
+    procedure SetCaption(const Value: string); virtual;
     procedure SetFont(Value: TFont);
     procedure SetParent(AParent: TWinControl); virtual;
     function GetBoundsRect: TRect;
@@ -240,7 +240,10 @@ type
     FOnExit: TNotifyEvent;
     function GetControl(Index: Integer): TControl;
     function GetControlCount: Integer;
+    function GetHandle: HWND;
     function GetShowing: Boolean; override;
+    procedure SetVisible(Value: Boolean); override;
+    procedure SetCaption(const Value: string); override;
     procedure CreateParams(var Params: TCreateParams); virtual;
     procedure CreateWindowHandle(const Params: TCreateParams); virtual;
     procedure DestroyWindowHandle; virtual;
@@ -269,7 +272,7 @@ type
     procedure InsertControl(AControl: TControl);
     procedure RemoveControl(AControl: TControl);
     function ControlAtPos(const Pos: TPoint; AllowDisabled: Boolean): TControl;
-    property Handle: HWND read FHandle;
+    property Handle: HWND read GetHandle;
     property Controls[Index: Integer]: TControl read GetControl;
     property ControlCount: Integer read GetControlCount;
   published
@@ -427,7 +430,7 @@ begin
     for I := 0 to ControlList.Count - 1 do
     begin
       C := TWinControl(ControlList[I]);
-      if (C <> nil) and (C.Handle = AHwnd) then
+      if (C <> nil) and (C.FHandle = AHwnd) then
       begin
         Result := C;
         Exit;
@@ -978,16 +981,53 @@ begin
   end;
 end;
 
+function TWinControl.GetHandle: HWND;
+begin
+  if not HandleAllocated then
+    CreateHandle;
+  Result := FHandle;
+end;
+
 function TWinControl.HandleAllocated: Boolean;
 begin
   Result := FHandle <> 0;
 end;
 
+procedure TWinControl.SetVisible(Value: Boolean);
+begin
+  if FVisible <> Value then
+  begin
+    FVisible := Value;
+    if HandleAllocated then
+    begin
+      if FVisible then
+        ShowWindow(FHandle, SW_SHOW)
+      else
+        ShowWindow(FHandle, SW_HIDE);
+    end;
+    Invalidate;
+  end;
+end;
+
+procedure TWinControl.SetCaption(const Value: string);
+var
+  Buf: array[0..255] of Char;
+begin
+  inherited SetCaption(Value);
+  if HandleAllocated then
+  begin
+    StrPCopy(Buf, Value);
+    SetWindowText(FHandle, Buf);
+  end;
+end;
+
 procedure TWinControl.CreateParams(var Params: TCreateParams);
 begin
   RegisterVclClass;
-  Params.Caption := PChar(FCaption);
-  Params.Style := WS_CHILD or WS_VISIBLE or WS_CLIPSIBLINGS;
+  Params.Caption := nil;
+  Params.Style := WS_CHILD or WS_CLIPSIBLINGS;
+  if FVisible then
+    Params.Style := Params.Style or WS_VISIBLE;
   Params.ExStyle := 0;
   Params.X := FLeft;
   Params.Y := FTop;
@@ -1003,11 +1043,21 @@ begin
 end;
 
 procedure TWinControl.CreateWindowHandle(const Params: TCreateParams);
+var
+  CapBuf: array[0..255] of Char;
+  CapPtr: PChar;
 begin
+  if Params.Caption <> nil then
+    CapPtr := Params.Caption
+  else
+  begin
+    StrPCopy(CapBuf, FCaption);
+    CapPtr := CapBuf;
+  end;
   FHandle := CreateWindowEx(
     Params.ExStyle,
     Params.WinClassName,
-    Params.Caption,
+    CapPtr,
     Params.Style,
     Params.X, Params.Y,
     Params.Width, Params.Height,
@@ -1081,7 +1131,7 @@ end;
 procedure TWinControl.SetBounds(ALeft, ATop, AWidth, AHeight: Integer);
 begin
   inherited SetBounds(ALeft, ATop, AWidth, AHeight);
-  if HandleAllocated then
+  if HandleAllocated and not IsIconic(FHandle) then
     MoveWindow(FHandle, ALeft, ATop, AWidth, AHeight, True);
 end;
 
@@ -1122,7 +1172,12 @@ begin
       SaveIndex := SaveDC(DC);
       OffsetWindowOrg(DC, -Ctrl.Left, -Ctrl.Top);
       IntersectClipRect(DC, 0, 0, Ctrl.Width, Ctrl.Height);
-      TGraphicControl(Ctrl).Paint;
+      TGraphicControl(Ctrl).Canvas.Handle := DC;
+      try
+        TGraphicControl(Ctrl).Paint;
+      finally
+        TGraphicControl(Ctrl).Canvas.Handle := 0;
+      end;
       RestoreDC(DC, SaveIndex);
     end;
   end;

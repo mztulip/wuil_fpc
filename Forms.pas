@@ -95,6 +95,7 @@ type
     procedure SetMenu(Value: TMainMenu);
     procedure SetActiveControl(Value: TWinControl);
   protected
+    procedure SetVisible(Value: Boolean); override;
     procedure CreateParams(var Params: TCreateParams); override;
     procedure Paint; override;
     procedure DoCreate; virtual;
@@ -365,9 +366,7 @@ begin
     WC.cbClsExtra := 0;
     WC.cbWndExtra := 4;
     WC.hInstance := HInstance;
-    WC.hIcon := LoadIcon(HInstance, MAKEINTRESOURCE(1));
-    if WC.hIcon = 0 then
-      WC.hIcon := LoadIcon(0, IDI_APPLICATION);
+    WC.hIcon := 0;
     WC.hCursor := LoadCursor(0, IDC_ARROW);
     WC.hbrBackground := COLOR_BTNFACE + 1;
     WC.lpszMenuName := nil;
@@ -512,11 +511,14 @@ begin
     if M.Code <> nil then FOnPaint := TNotifyEvent(M);
   end;
   DoCreate;
+  if FVisible then
+    Show;
 end;
 
 constructor TForm.CreateNew(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  FVisible := False;
   FCanvas := TCanvas.Create;
   FIcon := TIcon.Create;
   FDesigner := TDesigner.Create;
@@ -549,8 +551,25 @@ end;
 procedure TForm.SetIcon(Value: TIcon);
 begin
   FIcon.Assign(Value);
-  if HandleAllocated and (FIcon.Handle <> 0) then
-    SetClassWord(Handle, GCW_HICON, FIcon.Handle);
+  if HandleAllocated and IsIconic(FHandle) then
+    InvalidateRect(FHandle, nil, True);
+end;
+
+procedure TForm.SetVisible(Value: Boolean);
+begin
+  if csLoading in ComponentState then
+  begin
+    FVisible := Value;
+    Exit;
+  end;
+  if FVisible <> Value then
+  begin
+    FVisible := Value;
+    if FVisible then
+      Show
+    else
+      Hide;
+  end;
 end;
 
 procedure TForm.CreateParams(var Params: TCreateParams);
@@ -571,7 +590,14 @@ begin
     else        WStyle := WStyle or WS_OVERLAPPEDWINDOW;
   end;
 
+  case FWindowState of
+    wsMinimized: WStyle := WStyle or WS_MINIMIZE;
+    wsMaximized: WStyle := WStyle or WS_MAXIMIZE;
+  end;
+
   Params.Style := WStyle;
+  if FFormStyle = fsStayOnTop then
+    Params.ExStyle := Params.ExStyle or $00000008; { WS_EX_TOPMOST }
   Params.WndParent := 0;
 
   if FPosition = poScreenCenter then
@@ -584,7 +610,9 @@ end;
 procedure TForm.Show;
 var
   I: Integer;
+  Cmd: Integer;
 begin
+  FVisible := True;
   if not HandleAllocated then
     CreateHandle;
   if (FMenu <> nil) and HandleAllocated then
@@ -598,12 +626,18 @@ begin
       TWinControl(FControls[I]).CreateHandle;
   end;
   DoShow;
-  ShowWindow(FHandle, SW_SHOWNORMAL);
+  case FWindowState of
+    wsMinimized: Cmd := SW_SHOWMINNOACTIVE;
+    wsMaximized: Cmd := SW_SHOWMAXIMIZED;
+    else         Cmd := SW_SHOWNORMAL;
+  end;
+  ShowWindow(FHandle, Cmd);
   UpdateWindow(FHandle);
 end;
 
 procedure TForm.Hide;
 begin
+  FVisible := False;
   if HandleAllocated then
     ShowWindow(FHandle, SW_HIDE);
   if Assigned(FOnHide) then FOnHide(Self);
@@ -635,12 +669,18 @@ end;
 procedure TForm.Close;
 var
   Action: TCloseAction;
+  CanClose: Boolean;
 begin
+  CanClose := True;
+  if Assigned(FOnCloseQuery) then
+    FOnCloseQuery(Self, CanClose);
+  if not CanClose then Exit;
   Action := caHide;
   DoClose(Action);
   case Action of
     caHide: Hide;
-    caFree: Destroy;
+    caFree: Release;
+    caMinimize: WindowState := wsMinimized;
   end;
 end;
 
@@ -670,21 +710,64 @@ procedure TForm.WndProc(var Message: TMessage);
 var
   DC: HDC;
   PS: TPaintStruct;
+  IconH: HICON;
 begin
-  if Message.Msg = WM_PAINT then
-  begin
-    DC := BeginPaint(FHandle, PS);
-    if FCanvas <> nil then
-      FCanvas.Handle := DC;
-    try
-      Paint;
-    finally
-      if FCanvas <> nil then
-        FCanvas.Handle := 0;
-      EndPaint(FHandle, PS);
-    end;
-    Message.Result := 0;
-    Exit;
+  case Message.Msg of
+    WM_PAINT:
+      begin
+        if IsIconic(FHandle) then
+        begin
+          DC := BeginPaint(FHandle, PS);
+          SendMessage(FHandle, WM_ICONERASEBKGND, DC, 0);
+          IconH := 0;
+          if (FIcon <> nil) and (FIcon.Handle <> 0) then
+            IconH := FIcon.Handle
+          else if (Application <> nil) and (Application.Icon <> nil) then
+            IconH := Application.Icon.Handle;
+          if IconH <> 0 then
+            DrawIcon(DC, 0, 0, IconH);
+          EndPaint(FHandle, PS);
+          Message.Result := 0;
+          Exit;
+        end;
+        DC := BeginPaint(FHandle, PS);
+        if FCanvas <> nil then
+          FCanvas.Handle := DC;
+        try
+          Paint;
+          PaintControls(DC, nil);
+        finally
+          if FCanvas <> nil then
+            FCanvas.Handle := 0;
+          EndPaint(FHandle, PS);
+        end;
+        Message.Result := 0;
+        Exit;
+      end;
+    WM_QUERYDRAGICON:
+      begin
+        if (FIcon <> nil) and (FIcon.Handle <> 0) then
+          Message.Result := FIcon.Handle
+        else if (Application <> nil) and (Application.Icon <> nil) then
+          Message.Result := Application.Icon.Handle
+        else
+          Message.Result := 0;
+        Exit;
+      end;
+    WM_CLOSE:
+      begin
+        Close;
+        Message.Result := 0;
+        Exit;
+      end;
+    WM_SIZE:
+      begin
+        case Message.WParam of
+          SIZE_MINIMIZED: FWindowState := wsMinimized;
+          SIZE_MAXIMIZED: FWindowState := wsMaximized;
+          SIZE_RESTORED:  FWindowState := wsNormal;
+        end;
+      end;
   end;
   inherited WndProc(Message);
 end;
@@ -744,16 +827,13 @@ end;
 
 procedure TForm.SetWindowState(Value: TWindowState);
 begin
-  if FWindowState <> Value then
+  FWindowState := Value;
+  if HandleAllocated and FVisible then
   begin
-    FWindowState := Value;
-    if HandleAllocated then
-    begin
-      case FWindowState of
-        wsNormal:    ShowWindow(FHandle, SW_RESTORE);
-        wsMinimized: ShowWindow(FHandle, SW_MINIMIZE);
-        wsMaximized: ShowWindow(FHandle, SW_MAXIMIZE);
-      end;
+    case FWindowState of
+      wsNormal:    ShowWindow(FHandle, SW_RESTORE);
+      wsMinimized: ShowWindow(FHandle, SW_MINIMIZE);
+      wsMaximized: ShowWindow(FHandle, SW_MAXIMIZE);
     end;
   end;
 end;

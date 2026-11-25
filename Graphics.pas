@@ -81,12 +81,13 @@ type
     procedure SetHeight(Value: Integer);
     procedure SetColor(Value: TColor);
     procedure SetStyle(Value: TFontStyles);
+    function GetHandle: HFONT;
     procedure UpdateFont;
   public
     constructor Create;
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
-    property Handle: HFONT read FHandle;
+    property Handle: HFONT read GetHandle;
   published
     property Name: string read FName write SetName;
     property Size: Integer read FSize write SetSize;
@@ -104,12 +105,13 @@ type
     procedure SetColor(Value: TColor);
     procedure SetWidth(Value: Integer);
     procedure SetStyle(Value: TPenStyle);
+    function GetHandle: HPEN;
     procedure UpdatePen;
   public
     constructor Create;
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
-    property Handle: HPEN read FHandle;
+    property Handle: HPEN read GetHandle;
   published
     property Color: TColor read FColor write SetColor;
     property Width: Integer read FWidth write SetWidth;
@@ -125,12 +127,13 @@ type
     procedure SetColor(Value: TColor);
     procedure SetStyle(Value: TBrushStyle);
     procedure SetBitmap(Value: TBitmap);
+    function GetHandle: HBRUSH;
     procedure UpdateBrush;
   public
     constructor Create;
     destructor Destroy; override;
     procedure Assign(Source: TPersistent); override;
-    property Handle: HBRUSH read FHandle;
+    property Handle: HBRUSH read GetHandle;
     property Bitmap: TBitmap read FBitmap write SetBitmap;
   published
     property Color: TColor read FColor write SetColor;
@@ -537,28 +540,38 @@ begin
     inherited Assign(Source);
 end;
 
-procedure TFont.UpdateFont;
+function TFont.GetHandle: HFONT;
 var
   Weight: Integer;
+  FaceBuf: array[0..32] of Char;
+begin
+  if FHandle = 0 then
+  begin
+    if fsBold in FStyle then
+      Weight := 700
+    else
+      Weight := 400;
+    StrPLCopy(FaceBuf, FName, 32);
+    FHandle := CreateFont(
+      GetHeight, 0, 0, 0, Weight,
+      Byte(fsItalic in FStyle),
+      Byte(fsUnderline in FStyle),
+      Byte(fsStrikeOut in FStyle),
+      ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+      DEFAULT_QUALITY, DEFAULT_PITCH or FF_DONTCARE,
+      FaceBuf
+    );
+  end;
+  Result := FHandle;
+end;
+
+procedure TFont.UpdateFont;
 begin
   if FHandle <> 0 then
   begin
     DeleteObject(FHandle);
     FHandle := 0;
   end;
-  if fsBold in FStyle then
-    Weight := 700
-  else
-    Weight := 400;
-  FHandle := CreateFont(
-    -FSize, 0, 0, 0, Weight,
-    Byte(fsItalic in FStyle),
-    Byte(fsUnderline in FStyle),
-    Byte(fsStrikeOut in FStyle),
-    ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-    DEFAULT_QUALITY, DEFAULT_PITCH or FF_DONTCARE,
-    @FName[1]
-  );
 end;
 
 procedure TFont.SetName(const Value: string);
@@ -623,7 +636,7 @@ begin
   FColor := clBlack;
   FWidth := 1;
   FStyle := psSolid;
-  UpdatePen;
+  FHandle := 0;
 end;
 
 destructor TPen.Destroy;
@@ -646,19 +659,43 @@ begin
     inherited Assign(Source);
 end;
 
-procedure TPen.UpdatePen;
+function TPen.GetHandle: HPEN;
 var
   PenStyleCode: Integer;
+  RGBCol: LongInt;
+begin
+  if FHandle = 0 then
+  begin
+    if FStyle = psClear then
+      FHandle := GetStockObject(NULL_PEN)
+    else
+    begin
+      RGBCol := ColorToRGB(FColor);
+      if (FStyle = psSolid) and (FWidth <= 1) and (RGBCol = 0) then
+        FHandle := GetStockObject(BLACK_PEN)
+      else if (FStyle = psSolid) and (FWidth <= 1) and (RGBCol = $FFFFFF) then
+        FHandle := GetStockObject(WHITE_PEN)
+      else
+      begin
+        case FStyle of
+          psDash: PenStyleCode := PS_DASH;
+          psDot:  PenStyleCode := PS_DOT;
+          else    PenStyleCode := PS_SOLID;
+        end;
+        FHandle := CreatePen(PenStyleCode, FWidth, RGBCol);
+      end;
+    end;
+  end;
+  Result := FHandle;
+end;
+
+procedure TPen.UpdatePen;
 begin
   if FHandle <> 0 then
+  begin
     DeleteObject(FHandle);
-  case FStyle of
-    psDash: PenStyleCode := PS_DASH;
-    psDot:  PenStyleCode := PS_DOT;
-    psClear: PenStyleCode := PS_NULL;
-    else PenStyleCode := PS_SOLID;
+    FHandle := 0;
   end;
-  FHandle := CreatePen(PenStyleCode, FWidth, ColorToRGB(FColor));
 end;
 
 procedure TPen.SetColor(Value: TColor);
@@ -696,7 +733,7 @@ begin
   FColor := clWhite;
   FStyle := bsSolid;
   FBitmap := nil;
-  UpdateBrush;
+  FHandle := 0;
 end;
 
 destructor TBrush.Destroy;
@@ -724,22 +761,40 @@ begin
   if FBitmap = nil then
     FBitmap := TBitmap.Create;
   FBitmap.Assign(Value);
-  if (FBitmap <> nil) and (FBitmap.Handle <> 0) then
+  UpdateBrush;
+end;
+
+function TBrush.GetHandle: HBRUSH;
+var
+  RGBCol: LongInt;
+begin
+  if FHandle = 0 then
   begin
-    if FHandle <> 0 then
-      DeleteObject(FHandle);
-    FHandle := CreatePatternBrush(FBitmap.Handle);
+    if (FBitmap <> nil) and (FBitmap.Handle <> 0) then
+      FHandle := CreatePatternBrush(FBitmap.Handle)
+    else if FStyle = bsClear then
+      FHandle := GetStockObject(NULL_BRUSH)
+    else
+    begin
+      RGBCol := ColorToRGB(FColor);
+      if RGBCol = $FFFFFF then
+        FHandle := GetStockObject(WHITE_BRUSH)
+      else if RGBCol = 0 then
+        FHandle := GetStockObject(BLACK_BRUSH)
+      else
+        FHandle := CreateSolidBrush(RGBCol);
+    end;
   end;
+  Result := FHandle;
 end;
 
 procedure TBrush.UpdateBrush;
 begin
   if FHandle <> 0 then
+  begin
     DeleteObject(FHandle);
-  if FStyle = bsClear then
-    FHandle := GetStockObject(NULL_BRUSH)
-  else
-    FHandle := CreateSolidBrush(ColorToRGB(FColor));
+    FHandle := 0;
+  end;
 end;
 
 procedure TBrush.SetColor(Value: TColor);
@@ -782,16 +837,13 @@ end;
 
 procedure TCanvas.SetHandle(Value: HDC);
 begin
-  FHandle := Value;
-  if FHandle <> 0 then
+  if (FHandle <> 0) and (FHandle <> Value) then
   begin
-    if FPen.Handle <> 0 then
-      SelectObject(FHandle, FPen.Handle);
-    if FBrush.Handle <> 0 then
-      SelectObject(FHandle, FBrush.Handle);
-    if FFont.Handle <> 0 then
-      SelectObject(FHandle, FFont.Handle);
+    SelectObject(FHandle, GetStockObject(BLACK_PEN));
+    SelectObject(FHandle, GetStockObject(WHITE_BRUSH));
+    SelectObject(FHandle, GetStockObject(SYSTEM_FONT));
   end;
+  FHandle := Value;
 end;
 
 function TCanvas.GetPixel(X, Y: Integer): TColor;
