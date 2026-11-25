@@ -268,6 +268,41 @@ begin
     SetDown(False);
 end;
 
+procedure DrawTransparentGlyph(DstDC: HDC; DstX, DstY, W, H: Integer; Glyph: TBitmap);
+var
+  SrcDC, MaskDC: HDC;
+  MaskBmp, OldMask: HBITMAP;
+  TransColor, OldSrcBk, OldDstBk, OldDstTx: LongInt;
+begin
+  if (Glyph = nil) or Glyph.Empty or (W <= 0) or (H <= 0) then Exit;
+  SrcDC := Glyph.Canvas.Handle;
+  if SrcDC = 0 then Exit;
+  TransColor := GetPixel(SrcDC, 0, Glyph.Height - 1);
+  MaskBmp := CreateBitmap(W, H, 1, 1, nil);
+  if MaskBmp = 0 then
+  begin
+    BitBlt(DstDC, DstX, DstY, W, H, SrcDC, 0, 0, SRCCOPY);
+    Exit;
+  end;
+  MaskDC := CreateCompatibleDC(DstDC);
+  OldMask := SelectObject(MaskDC, MaskBmp);
+  OldSrcBk := SetBkColor(SrcDC, TransColor);
+  BitBlt(MaskDC, 0, 0, W, H, SrcDC, 0, 0, SRCCOPY);
+  SetBkColor(SrcDC, OldSrcBk);
+
+  OldDstBk := SetBkColor(DstDC, $00FFFFFF);
+  OldDstTx := SetTextColor(DstDC, $00000000);
+  BitBlt(DstDC, DstX, DstY, W, H, SrcDC, 0, 0, SRCINVERT);
+  BitBlt(DstDC, DstX, DstY, W, H, MaskDC, 0, 0, SRCAND);
+  BitBlt(DstDC, DstX, DstY, W, H, SrcDC, 0, 0, SRCINVERT);
+  SetBkColor(DstDC, OldDstBk);
+  SetTextColor(DstDC, OldDstTx);
+
+  SelectObject(MaskDC, OldMask);
+  DeleteDC(MaskDC);
+  DeleteObject(MaskBmp);
+end;
+
 procedure TSpeedButton.Paint;
 var
   DC: HDC;
@@ -343,7 +378,7 @@ begin
         GlyphX := (FWidth - (GlyphW + 4 + TextW)) div 2 + Offset;
         if GlyphX < 3 then GlyphX := 3;
         GlyphY := (FHeight - FGlyph.Height) div 2 + Offset;
-        FGlyph.Draw(Canvas, Rect(GlyphX, GlyphY, GlyphX + GlyphW, GlyphY + FGlyph.Height));
+        DrawTransparentGlyph(DC, GlyphX, GlyphY, GlyphW, FGlyph.Height, FGlyph);
         TextX := GlyphX + GlyphW + 4;
         TextY := (FHeight - TextH) div 2 + Offset;
         WinProcs.TextOut(DC, TextX, TextY, @FCaption[1], Length(FCaption));
@@ -352,7 +387,7 @@ begin
       begin
         GlyphX := (FWidth - GlyphW) div 2 + Offset;
         GlyphY := (FHeight - FGlyph.Height) div 2 + Offset;
-        FGlyph.Draw(Canvas, Rect(GlyphX, GlyphY, GlyphX + GlyphW, GlyphY + FGlyph.Height));
+        DrawTransparentGlyph(DC, GlyphX, GlyphY, GlyphW, FGlyph.Height, FGlyph);
       end;
     end
     else if Length(FCaption) > 0 then
