@@ -82,6 +82,8 @@ type
     FOnClose: TCloseEvent;
     FOnPaint: TNotifyEvent;
     FOnHide: TNotifyEvent;
+    FOnActivate: TNotifyEvent;
+    FOnDeactivate: TNotifyEvent;
     FOnCloseQuery: TCloseQueryEvent;
     FFormStyle: TFormStyle;
     FBorderIcons: TBorderIcons;
@@ -128,6 +130,8 @@ type
     property OnClose: TCloseEvent read FOnClose write FOnClose;
     property OnPaint: TNotifyEvent read FOnPaint write FOnPaint;
     property OnHide: TNotifyEvent read FOnHide write FOnHide;
+    property OnActivate: TNotifyEvent read FOnActivate write FOnActivate;
+    property OnDeactivate: TNotifyEvent read FOnDeactivate write FOnDeactivate;
     property OnCloseQuery: TCloseQueryEvent read FOnCloseQuery write FOnCloseQuery;
     property FormStyle: TFormStyle read FFormStyle write FFormStyle default fsNormal;
     property BorderIcons: TBorderIcons read FBorderIcons write FBorderIcons default [biSystemMenu, biMinimize, biMaximize];
@@ -539,6 +543,12 @@ end;
 
 destructor TForm.Destroy;
 begin
+  if FVisible then
+  begin
+    FVisible := False;
+    if Assigned(FOnHide) then
+      FOnHide(Self);
+  end;
   if Screen <> nil then
     Screen.FForms.Remove(Self);
   DoDestroy;
@@ -695,14 +705,21 @@ begin
   DoClose(Action);
   case Action of
     caHide: Hide;
-    caFree: Release;
+    caFree:
+      begin
+        Hide;
+        Release;
+      end;
     caMinimize: WindowState := wsMinimized;
   end;
 end;
 
 procedure TForm.Release;
 begin
-  Free;
+  if HandleAllocated then
+    PostMessage(FHandle, CM_RELEASE, 0, 0)
+  else
+    Free;
 end;
 
 procedure TForm.SetActiveControl(Value: TWinControl);
@@ -776,6 +793,25 @@ begin
         Close;
         Message.Result := 0;
         Exit;
+      end;
+    CM_RELEASE:
+      begin
+        Free;
+        Message.Result := 0;
+        Exit;
+      end;
+    WM_ACTIVATE:
+      begin
+        if Loword(Message.WParam) <> WA_INACTIVE then
+        begin
+          if Assigned(FOnActivate) then
+            FOnActivate(Self);
+        end
+        else
+        begin
+          if Assigned(FOnDeactivate) then
+            FOnDeactivate(Self);
+        end;
       end;
     WM_SIZE:
       begin

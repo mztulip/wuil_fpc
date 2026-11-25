@@ -419,7 +419,6 @@ var
 begin
   if CanFocus and not Focused then
     SetFocus;
-  inherited MouseDown(Button, Shift, X, Y);
   MouseToCell(X, Y, C, R);
   if (C >= 0) and (R >= 0) then
   begin
@@ -430,6 +429,7 @@ begin
       Invalidate;
     end;
   end;
+  inherited MouseDown(Button, Shift, X, Y);
 end;
 
 procedure TCustomGrid.DrawCell(ACol, ARow: Longint; ARect: TRect; AState: TGridDrawState);
