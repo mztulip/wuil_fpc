@@ -584,10 +584,26 @@ begin
 
   WStyle := WS_CLIPCHILDREN or WS_CLIPSIBLINGS;
   case FBorderStyle of
-    bsNone:     WStyle := WStyle or WS_POPUP;
-    bsSingle:   WStyle := WStyle or (WS_OVERLAPPED or WS_CAPTION or WS_SYSMENU or WS_MINIMIZEBOX);
-    bsDialog:   WStyle := WStyle or (WS_POPUP or WS_CAPTION or WS_SYSMENU or DS_MODALFRAME);
-    else        WStyle := WStyle or WS_OVERLAPPEDWINDOW;
+    bsNone:
+      WStyle := WStyle or WS_POPUP;
+    bsSingle:
+      WStyle := WStyle or (WS_OVERLAPPED or WS_CAPTION or WS_BORDER);
+    bsDialog:
+      WStyle := WStyle or (WS_POPUP or WS_CAPTION or DS_MODALFRAME);
+    else
+      WStyle := WStyle or (WS_OVERLAPPED or WS_CAPTION or WS_THICKFRAME);
+  end;
+
+  if (FBorderStyle <> bsNone) and (biSystemMenu in FBorderIcons) then
+  begin
+    WStyle := WStyle or WS_SYSMENU;
+    if FBorderStyle <> bsDialog then
+    begin
+      if biMinimize in FBorderIcons then
+        WStyle := WStyle or WS_MINIMIZEBOX;
+      if biMaximize in FBorderIcons then
+        WStyle := WStyle or WS_MAXIMIZEBOX;
+    end;
   end;
 
   case FWindowState of
