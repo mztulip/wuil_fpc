@@ -895,20 +895,14 @@ end;
 
 procedure TControl.BringToFront;
 begin
-  if (FParent <> nil) and (FParent.HandleAllocated) then
-  begin
-    if (Self is TWinControl) and TWinControl(Self).HandleAllocated then
-      BringWindowToTop(TWinControl(Self).Handle);
-  end;
+  if (Self is TWinControl) and TWinControl(Self).HandleAllocated then
+    BringWindowToTop(TWinControl(Self).Handle);
 end;
 
 procedure TControl.SendToBack;
 begin
-  if (FParent <> nil) and (FParent.HandleAllocated) then
-  begin
-    if (Self is TWinControl) and TWinControl(Self).HandleAllocated then
-      SetWindowPos(TWinControl(Self).Handle, 1, 0, 0, 0, 0, SWP_NOMOVE or SWP_NOSIZE);
-  end;
+  if (Self is TWinControl) and TWinControl(Self).HandleAllocated then
+    SetWindowPos(TWinControl(Self).Handle, 1, 0, 0, 0, 0, SWP_NOMOVE or SWP_NOSIZE);
 end;
 
 procedure TControl.Update;

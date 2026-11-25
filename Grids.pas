@@ -417,7 +417,7 @@ procedure TCustomGrid.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: 
 var
   C, R: Longint;
 begin
-  if CanFocus and not Focused then
+  if not (ssDouble in Shift) and CanFocus and not Focused then
     SetFocus;
   MouseToCell(X, Y, C, R);
   if (C >= 0) and (R >= 0) then
