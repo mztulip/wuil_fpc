@@ -153,6 +153,13 @@ type
     function GetClientHeight: Integer;
     procedure SetClientHeight(Value: Integer);
     procedure WndProc(var Message: TMessage); virtual;
+    procedure WMLButtonDown(var Message: TWMLButtonDown); message WM_LBUTTONDOWN;
+    procedure WMRButtonDown(var Message: TWMRButtonDown); message WM_RBUTTONDOWN;
+    procedure WMLButtonDblClk(var Message: TWMLButtonDblClk); message WM_LBUTTONDBLCLK;
+    procedure WMRButtonDblClk(var Message: TWMRButtonDblClk); message WM_RBUTTONDBLCLK;
+    procedure WMMouseMove(var Message: TWMMouseMove); message WM_MOUSEMOVE;
+    procedure WMLButtonUp(var Message: TWMLButtonUp); message WM_LBUTTONUP;
+    procedure WMRButtonUp(var Message: TWMRButtonUp); message WM_RBUTTONUP;
     property ControlStyle: TControlStyle read FControlStyle write FControlStyle;
   public
     constructor Create(AOwner: TComponent); override;
@@ -267,7 +274,7 @@ type
     procedure Update; override;
     procedure PaintControls(DC: HDC; First: TControl);
     procedure Broadcast(var Message);
-    procedure WndProc(var Message: TMessage); virtual;
+    procedure WndProc(var Message: TMessage); override;
     procedure DefaultHandler(var Message); override;
     procedure InsertControl(AControl: TControl);
     procedure RemoveControl(AControl: TControl);
@@ -378,15 +385,6 @@ begin
           { Komunikat z menu (ID w AWParam) }
           DispatchMenuCommand(AWParam);
         end;
-      end;
-      WM_RBUTTONUP:
-      begin
-        if (Ctrl.PopupMenu <> nil) and Ctrl.PopupMenu.AutoPopup then
-          Ctrl.PopupMenu.Popup(Loword(ALParam), Hiword(ALParam));
-      end;
-      WM_LBUTTONUP:
-      begin
-        Ctrl.Click;
       end;
     end;
 
@@ -585,9 +583,66 @@ begin
   Result := M.Result;
 end;
 
+function KeysToShiftState(Keys: Word): TShiftState;
+begin
+  Result := [];
+  if Keys and MK_SHIFT <> 0 then Include(Result, ssShift);
+  if Keys and MK_CONTROL <> 0 then Include(Result, ssCtrl);
+  if Keys and MK_LBUTTON <> 0 then Include(Result, ssLeft);
+  if Keys and MK_RBUTTON <> 0 then Include(Result, ssRight);
+  if Keys and MK_MBUTTON <> 0 then Include(Result, ssMiddle);
+  if GetKeyState(VK_MENU) < 0 then Include(Result, ssAlt);
+end;
+
 procedure TControl.WndProc(var Message: TMessage);
 begin
   Dispatch(Message);
+end;
+
+procedure TControl.WMLButtonDown(var Message: TWMLButtonDown);
+begin
+  MouseDown(mbLeft, KeysToShiftState(Message.Keys) + [ssLeft], Message.XPos, Message.YPos);
+end;
+
+procedure TControl.WMRButtonDown(var Message: TWMRButtonDown);
+begin
+  MouseDown(mbRight, KeysToShiftState(Message.Keys) + [ssRight], Message.XPos, Message.YPos);
+end;
+
+procedure TControl.WMLButtonDblClk(var Message: TWMLButtonDblClk);
+begin
+  DblClick;
+  MouseDown(mbLeft, KeysToShiftState(Message.Keys) + [ssLeft, ssDouble], Message.XPos, Message.YPos);
+end;
+
+procedure TControl.WMRButtonDblClk(var Message: TWMRButtonDblClk);
+begin
+  MouseDown(mbRight, KeysToShiftState(Message.Keys) + [ssRight, ssDouble], Message.XPos, Message.YPos);
+end;
+
+procedure TControl.WMMouseMove(var Message: TWMMouseMove);
+begin
+  MouseMove(KeysToShiftState(Message.Keys), Message.XPos, Message.YPos);
+end;
+
+procedure TControl.WMLButtonUp(var Message: TWMLButtonUp);
+begin
+  MouseUp(mbLeft, KeysToShiftState(Message.Keys), Message.XPos, Message.YPos);
+  if (Message.XPos >= 0) and (Message.XPos < FWidth) and
+     (Message.YPos >= 0) and (Message.YPos < FHeight) then
+    Click;
+end;
+
+procedure TControl.WMRButtonUp(var Message: TWMRButtonUp);
+var
+  Pt: TPoint;
+begin
+  MouseUp(mbRight, KeysToShiftState(Message.Keys), Message.XPos, Message.YPos);
+  if (FPopupMenu <> nil) and FPopupMenu.AutoPopup then
+  begin
+    Pt := ClientToScreen(Point(Message.XPos, Message.YPos));
+    FPopupMenu.Popup(Pt.X, Pt.Y);
+  end;
 end;
 
 function TControl.Dragging: Boolean;
@@ -1197,8 +1252,31 @@ begin
 end;
 
 procedure TWinControl.WndProc(var Message: TMessage);
+var
+  C: TControl;
+  P: TPoint;
 begin
-  Dispatch(Message);
+  case Message.Msg of
+    WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_LBUTTONDBLCLK,
+    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_RBUTTONDBLCLK,
+    WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MBUTTONDBLCLK:
+    begin
+      P.X := SmallInt(Loword(Message.LParam));
+      P.Y := SmallInt(Hiword(Message.LParam));
+      if (CaptureControl <> nil) and (CaptureControl.Parent = Self) and
+         not (CaptureControl is TWinControl) then
+        C := CaptureControl
+      else
+        C := ControlAtPos(P, False);
+      if (C <> nil) and not (C is TWinControl) then
+      begin
+        Message.LParam := MakeLong(Word(SmallInt(P.X - C.Left)), Word(SmallInt(P.Y - C.Top)));
+        C.WndProc(Message);
+        Exit;
+      end;
+    end;
+  end;
+  inherited WndProc(Message);
 end;
 
 procedure TWinControl.DefaultHandler(var Message);
