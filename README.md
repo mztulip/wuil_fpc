@@ -168,4 +168,4 @@ W wyniku powstanie 16-bitowy plik wykonywalny **`hello_gui.exe`** w formacie **N
 ---
 
 ## Licencja
-Biblioteka WUIL jest udostępniana na otwartej licencji (modyfikowany LGPL z wyjątkiem linkowania, analogicznie do FPC RTL), co pozwala na budowanie za jej pomocą dowolnych aplikacji.
+Biblioteka WUIL jest udostępniana na licencji [MIT](LICENSE), co pozwala na swobodne używanie jej do budowania dowolnych aplikacji (zarówno otwartoźródłowych, w tym na licencji GPL jak Calmira II, jak i komercyjnych).
