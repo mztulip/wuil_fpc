@@ -347,6 +347,8 @@ type
   protected
     function Get(Index: Integer): string; override;
     function GetCount: Integer; override;
+    function GetObject(Index: Integer): TObject; override;
+    procedure PutObject(Index: Integer; AObject: TObject); override;
   public
     constructor Create(AComboBox: TCustomComboBox);
     destructor Destroy; override;
@@ -970,22 +972,29 @@ begin
 end;
 
 procedure TListBoxStrings.Insert(Index: Integer; const S: string);
+var
+  Buf: array[0..255] of Char;
 begin
   if (FListBox <> nil) and FListBox.HandleAllocated then
-    SendMessage(FListBox.Handle, LB_INSERTSTRING, Index, LongInt(PChar(S)));
+  begin
+    StrPLCopy(Buf, S, 255);
+    SendMessage(FListBox.Handle, LB_INSERTSTRING, Index, LongInt(@Buf));
+  end;
   FBuffer.Insert(Index, S);
 end;
 
 procedure TListBoxStrings.SyncToHandle;
 var
   I: Integer;
+  Buf: array[0..255] of Char;
 begin
   if (FListBox <> nil) and FListBox.HandleAllocated then
   begin
     SendMessage(FListBox.Handle, LB_RESETCONTENT, 0, 0);
     for I := 0 to FBuffer.Count - 1 do
     begin
-      SendMessage(FListBox.Handle, LB_ADDSTRING, 0, LongInt(PChar(FBuffer[I])));
+      StrPLCopy(Buf, FBuffer[I], 255);
+      SendMessage(FListBox.Handle, LB_ADDSTRING, 0, LongInt(@Buf));
       SendMessage(FListBox.Handle, LB_SETITEMDATA, I, LongInt(FBuffer.Objects[I]));
     end;
   end;
@@ -1189,27 +1198,22 @@ end;
 
 function TComboBoxStrings.GetCount: Integer;
 begin
-  if (FComboBox <> nil) and FComboBox.HandleAllocated then
-    Result := SendMessage(FComboBox.Handle, CB_GETCOUNT, 0, 0)
-  else
-    Result := FBuffer.Count;
+  Result := FBuffer.Count;
 end;
 
 function TComboBoxStrings.Get(Index: Integer): string;
-var
-  Buf: array[0..255] of Char;
-  Len: Integer;
 begin
-  if (FComboBox <> nil) and FComboBox.HandleAllocated then
-  begin
-    Len := SendMessage(FComboBox.Handle, CB_GETLBTEXT, Index, LongInt(@Buf));
-    if Len >= 0 then
-      Result := StrPas(Buf)
-    else
-      Result := '';
-  end
-  else
-    Result := FBuffer[Index];
+  Result := FBuffer[Index];
+end;
+
+function TComboBoxStrings.GetObject(Index: Integer): TObject;
+begin
+  Result := FBuffer.Objects[Index];
+end;
+
+procedure TComboBoxStrings.PutObject(Index: Integer; AObject: TObject);
+begin
+  FBuffer.Objects[Index] := AObject;
 end;
 
 procedure TComboBoxStrings.Clear;
@@ -1228,21 +1232,30 @@ begin
 end;
 
 procedure TComboBoxStrings.Insert(Index: Integer; const S: string);
+var
+  Buf: array[0..255] of Char;
 begin
   if (FComboBox <> nil) and FComboBox.HandleAllocated then
-    SendMessage(FComboBox.Handle, CB_INSERTSTRING, Index, LongInt(PChar(S)));
+  begin
+    StrPLCopy(Buf, S, 255);
+    SendMessage(FComboBox.Handle, CB_INSERTSTRING, Index, LongInt(@Buf));
+  end;
   FBuffer.Insert(Index, S);
 end;
 
 procedure TComboBoxStrings.SyncToHandle;
 var
   I: Integer;
+  Buf: array[0..255] of Char;
 begin
   if (FComboBox <> nil) and FComboBox.HandleAllocated then
   begin
     SendMessage(FComboBox.Handle, CB_RESETCONTENT, 0, 0);
     for I := 0 to FBuffer.Count - 1 do
-      SendMessage(FComboBox.Handle, CB_ADDSTRING, 0, LongInt(PChar(FBuffer[I])));
+    begin
+      StrPLCopy(Buf, FBuffer[I], 255);
+      SendMessage(FComboBox.Handle, CB_ADDSTRING, 0, LongInt(@Buf));
+    end;
   end;
 end;
 
@@ -1293,8 +1306,8 @@ begin
   case FStyle of
     csSimple:           Params.Style := Params.Style or CBS_SIMPLE;
     csDropDownList:     Params.Style := Params.Style or CBS_DROPDOWNLIST;
-    csOwnerDrawFixed:   Params.Style := Params.Style or CBS_DROPDOWNLIST or CBS_OWNERDRAWFIXED;
-    csOwnerDrawVariable:Params.Style := Params.Style or CBS_DROPDOWNLIST or CBS_OWNERDRAWVARIABLE;
+    csOwnerDrawFixed:   Params.Style := Params.Style or CBS_DROPDOWNLIST or CBS_OWNERDRAWFIXED or CBS_HASSTRINGS;
+    csOwnerDrawVariable:Params.Style := Params.Style or CBS_DROPDOWNLIST or CBS_OWNERDRAWVARIABLE or CBS_HASSTRINGS;
     else                Params.Style := Params.Style or CBS_DROPDOWN;
   end;
   if FSorted then
