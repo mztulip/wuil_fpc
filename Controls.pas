@@ -120,6 +120,7 @@ type
     FControlStyle: TControlStyle;
     FHelpContext: THelpContext;
     FDragging: Boolean;
+    FMouseDownInControl: Boolean;
     FOnDragDrop: TDragDropEvent;
     FOnDragOver: TDragOverEvent;
     FOnEndDrag: TEndDragEvent;
@@ -601,6 +602,7 @@ end;
 
 procedure TControl.WMLButtonDown(var Message: TWMLButtonDown);
 begin
+  FMouseDownInControl := True;
   MouseDown(mbLeft, KeysToShiftState(Message.Keys) + [ssLeft], Message.XPos, Message.YPos);
 end;
 
@@ -626,9 +628,13 @@ begin
 end;
 
 procedure TControl.WMLButtonUp(var Message: TWMLButtonUp);
+var
+  WasDown: Boolean;
 begin
+  WasDown := FMouseDownInControl;
+  FMouseDownInControl := False;
   MouseUp(mbLeft, KeysToShiftState(Message.Keys), Message.XPos, Message.YPos);
-  if (Message.XPos >= 0) and (Message.XPos < FWidth) and
+  if WasDown and (Message.XPos >= 0) and (Message.XPos < FWidth) and
      (Message.YPos >= 0) and (Message.YPos < FHeight) then
     Click;
 end;
@@ -732,8 +738,24 @@ begin
 end;
 
 procedure TControl.SetLeft(Value: Integer);
+var
+  I, X: Integer;
+  C: TControl;
 begin
-  SetBounds(Value, FTop, FWidth, FHeight);
+  if (FAlign = alLeft) and (FParent <> nil) then
+  begin
+    X := 2;
+    for I := 0 to FParent.FControls.Count - 1 do
+    begin
+      C := TControl(FParent.FControls[I]);
+      if C = Self then Break;
+      if (C.FAlign = alLeft) and C.FVisible then
+        Inc(X, C.FWidth);
+    end;
+    SetBounds(X, 1, FWidth, FHeight);
+  end
+  else
+    SetBounds(Value, FTop, FWidth, FHeight);
 end;
 
 procedure TControl.SetTop(Value: Integer);

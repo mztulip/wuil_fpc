@@ -620,15 +620,26 @@ begin
 
   if Length(FCaption) > 0 then
   begin
-    FCanvas.Font.Assign(FFont);
+    if FParentFont and (FParent <> nil) then
+      FCanvas.Font.Assign(FParent.Font)
+    else
+      FCanvas.Font.Assign(FFont);
+    FCanvas.Brush.Style := bsClear;
     Flags := DT_SINGLELINE or DT_VCENTER;
     case FAlignment of
-      taLeftJustify:  Flags := Flags or DT_LEFT;
-      taRightJustify: Flags := Flags or DT_RIGHT;
-      taCenter:       Flags := Flags or DT_CENTER;
+      taLeftJustify:
+        begin
+          Flags := Flags or DT_LEFT;
+          Inc(R.Left, 4);
+        end;
+      taRightJustify:
+        begin
+          Flags := Flags or DT_RIGHT;
+          Dec(R.Right, 4);
+        end;
+      taCenter:
+        Flags := Flags or DT_CENTER;
     end;
-    SetBkMode(FCanvas.Handle, TRANSPARENT);
-    SetTextColor(FCanvas.Handle, ColorToRGB(FFont.Color));
     DrawText(FCanvas.Handle, @FCaption[1], Length(FCaption), R, Flags);
   end;
 end;

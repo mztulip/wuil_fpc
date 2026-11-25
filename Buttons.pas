@@ -36,6 +36,8 @@ type
     procedure SetMargin(Value: Integer);
     procedure UpdateExclusive;
     procedure Paint; override;
+    procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -230,6 +232,40 @@ begin
       SetDown(False);
   end;
   inherited Click;
+end;
+
+procedure TSpeedButton.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  inherited MouseDown(Button, Shift, X, Y);
+  if (Button = mbLeft) and Enabled then
+  begin
+    if not FDown then
+    begin
+      FState := bsDown;
+      Invalidate;
+    end;
+    FDragging := True;
+  end;
+end;
+
+procedure TSpeedButton.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+var
+  DoClick: Boolean;
+begin
+  inherited MouseUp(Button, Shift, X, Y);
+  if FDragging then
+  begin
+    FDragging := False;
+    DoClick := (X >= 0) and (X < FWidth) and (Y >= 0) and (Y < FHeight);
+    if (FGroupIndex = 0) or not DoClick then
+    begin
+      if not FDown then
+        FState := bsUp;
+      Invalidate;
+    end;
+  end
+  else if (Button = mbLeft) and FDown and FAllowAllUp then
+    SetDown(False);
 end;
 
 procedure TSpeedButton.Paint;

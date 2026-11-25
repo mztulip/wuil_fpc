@@ -883,14 +883,18 @@ procedure TApplication.CreateForm(FormClass: TFormClass; var Reference);
 var
   Instance: TForm;
 begin
+  Instance := TForm(FormClass.NewInstance);
+  TForm(Reference) := Instance;
   try
-    Instance := FormClass.Create(Self);
-    TForm(Reference) := Instance;
+    Instance.Create(Self);
     if FMainForm = nil then
       FMainForm := Instance;
   except
     on E: Exception do
+    begin
+      TForm(Reference) := nil;
       OutputDebugString(PChar('CreateForm EXCEPTION in ' + FormClass.ClassName + ': ' + E.ClassName + ': ' + E.Message));
+    end;
   end;
 end;
 
