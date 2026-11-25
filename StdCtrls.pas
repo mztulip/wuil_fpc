@@ -5,7 +5,7 @@ unit StdCtrls;
 interface
 
 uses
-  WinTypes, WinProcs, Classes, Graphics, Controls, Forms, SysUtils;
+  WinTypes, WinProcs, Messages, Classes, Graphics, Controls, Forms, SysUtils;
 
 const
   ES_READONLY    = $0800;
@@ -265,6 +265,7 @@ type
     procedure SetTopIndex(Value: Integer);
     function GetSelCount: Integer;
     procedure SetItems(Value: TStrings);
+    procedure CNDrawItem(var Message: TWMDrawItem); message CN_DRAWITEM;
   protected
     procedure CreateParams(var Params: TCreateParams); override;
     procedure CreateWindowHandle(const Params: TCreateParams); override;
@@ -381,6 +382,8 @@ type
     procedure SetItemHeight(Value: Integer);
     procedure SetMaxLength(Value: Integer);
     procedure SetStyle(Value: TComboBoxStyle);
+    procedure CNDrawItem(var Message: TWMDrawItem); message CN_DRAWITEM;
+    procedure CNCommand(var Message: TWMCommand); message CN_COMMAND;
   protected
     procedure CreateParams(var Params: TCreateParams); override;
     procedure CreateWindowHandle(const Params: TCreateParams); override;
@@ -1067,6 +1070,33 @@ begin
     FOnDrawItem(Self, Index, Rect, State);
 end;
 
+procedure TCustomListBox.CNDrawItem(var Message: TWMDrawItem);
+var
+  State: TOwnerDrawState;
+begin
+  if Message.DrawItemStruct = nil then Exit;
+  with Message.DrawItemStruct^ do
+  begin
+    State := [];
+    if (itemState and $0001) <> 0 then Include(State, odSelected);
+    if (itemState and $0002) <> 0 then Include(State, odGrayed);
+    if (itemState and $0004) <> 0 then Include(State, odDisabled);
+    if (itemState and $0008) <> 0 then Include(State, odChecked);
+    if (itemState and $0010) <> 0 then Include(State, odFocused);
+    FCanvas.Handle := hDC;
+    try
+      FCanvas.Font := Font;
+      FCanvas.Brush.Color := Color;
+      if Integer(itemID) >= 0 then
+        DrawItem(Integer(itemID), rcItem, State)
+      else
+        FCanvas.FillRect(rcItem);
+    finally
+      FCanvas.Handle := 0;
+    end;
+  end;
+end;
+
 procedure TCustomListBox.MeasureItem(Index: Integer; var Height: Integer);
 begin
   if Assigned(FOnMeasureItem) then
@@ -1413,6 +1443,42 @@ procedure TCustomComboBox.DrawItem(Index: Integer; Rect: TRect; State: TOwnerDra
 begin
   if Assigned(FOnDrawItem) then
     FOnDrawItem(Self, Index, Rect, State);
+end;
+
+procedure TCustomComboBox.CNDrawItem(var Message: TWMDrawItem);
+var
+  State: TOwnerDrawState;
+begin
+  if Message.DrawItemStruct = nil then Exit;
+  with Message.DrawItemStruct^ do
+  begin
+    State := [];
+    if (itemState and $0001) <> 0 then Include(State, odSelected);
+    if (itemState and $0002) <> 0 then Include(State, odGrayed);
+    if (itemState and $0004) <> 0 then Include(State, odDisabled);
+    if (itemState and $0008) <> 0 then Include(State, odChecked);
+    if (itemState and $0010) <> 0 then Include(State, odFocused);
+    FCanvas.Handle := hDC;
+    try
+      FCanvas.Font := Font;
+      FCanvas.Brush.Color := Color;
+      if Integer(itemID) >= 0 then
+        DrawItem(Integer(itemID), rcItem, State)
+      else
+        FCanvas.FillRect(rcItem);
+    finally
+      FCanvas.Handle := 0;
+    end;
+  end;
+end;
+
+procedure TCustomComboBox.CNCommand(var Message: TWMCommand);
+begin
+  case Message.NotifyCode of
+    1 {CBN_SELCHANGE}: Change;
+    7 {CBN_DROPDOWN}:
+      if Assigned(FOnDropDown) then FOnDropDown(Self);
+  end;
 end;
 
 { TMemo }

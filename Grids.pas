@@ -480,7 +480,7 @@ begin
 
         DrawCell(C, R, CRect, State);
 
-        if (goVertLine in FOptions) or (goHorzLine in FOptions) then
+        if (FGridLineWidth > 0) and ((goVertLine in FOptions) or (goHorzLine in FOptions)) then
         begin
           Canvas.Pen.Color := clBtnShadow;
           if goVertLine in FOptions then

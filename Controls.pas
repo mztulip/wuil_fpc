@@ -1278,9 +1278,39 @@ end;
 procedure TWinControl.WndProc(var Message: TMessage);
 var
   C: TControl;
+  WC: TWinControl;
   P: TPoint;
+  DIS: PDrawItemStruct;
 begin
   case Message.Msg of
+    WM_DRAWITEM:
+    begin
+      DIS := PDrawItemStruct(Message.LParam);
+      if DIS <> nil then
+      begin
+        WC := FindControl(DIS^.hwndItem);
+        if WC <> nil then
+        begin
+          Message.Msg := CN_DRAWITEM;
+          WC.Dispatch(Message);
+          Message.Result := 1;
+          Exit;
+        end;
+      end;
+    end;
+    WM_COMMAND:
+    begin
+      if Message.LParam <> 0 then
+      begin
+        WC := FindControl(HWND(Loword(Message.LParam)));
+        if WC <> nil then
+        begin
+          Message.Msg := CN_COMMAND;
+          WC.Dispatch(Message);
+          Exit;
+        end;
+      end;
+    end;
     WM_MOUSEMOVE, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_LBUTTONDBLCLK,
     WM_RBUTTONDOWN, WM_RBUTTONUP, WM_RBUTTONDBLCLK,
     WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MBUTTONDBLCLK:

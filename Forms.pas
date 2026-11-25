@@ -99,6 +99,7 @@ type
   protected
     procedure SetVisible(Value: Boolean); override;
     procedure CreateParams(var Params: TCreateParams); override;
+    procedure CreateWnd; override;
     procedure Paint; override;
     procedure DoCreate; virtual;
     procedure DoDestroy; virtual;
@@ -631,6 +632,13 @@ begin
     Params.X := (GetSystemMetrics(SM_CXSCREEN) - FWidth) div 2;
     Params.Y := (GetSystemMetrics(SM_CYSCREEN) - FHeight) div 2;
   end;
+end;
+
+procedure TForm.CreateWnd;
+begin
+  inherited CreateWnd;
+  if (FMenu <> nil) and HandleAllocated then
+    WinProcs.SetMenu(FHandle, FMenu.Handle);
 end;
 
 procedure TForm.Show;
