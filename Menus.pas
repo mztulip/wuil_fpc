@@ -222,6 +222,8 @@ end;
 
 destructor TMenuItem.Destroy;
 begin
+  if FParent <> nil then
+    FParent.Remove(Self);
   Clear;
   FItems.Free;
   UnregisterMenuItem(Self);
@@ -362,6 +364,7 @@ var
   Flags: UINT;
   ItemId: UINT;
   CapStr: string;
+  CapBuf: array[0..255] of Char;
 begin
   if FHandle = 0 then
   begin
@@ -398,7 +401,8 @@ begin
         if Child.ShortCut <> 0 then
           CapStr := CapStr + #9 + ShortCutToText(Child.ShortCut);
 
-        AppendMenu(FHandle, Flags, ItemId, PChar(CapStr));
+        StrPLCopy(CapBuf, CapStr, 255);
+        AppendMenu(FHandle, Flags, ItemId, CapBuf);
       end;
     end;
   end;
@@ -618,6 +622,7 @@ var
   Child: TMenuItem;
   Flags: UINT;
   ItemId: UINT;
+  CapBuf: array[0..255] of Char;
 begin
   if FItems.FHandle = 0 then
   begin
@@ -640,7 +645,8 @@ begin
         end;
         if not Child.Enabled then
           Flags := Flags or MF_GRAYED;
-        AppendMenu(FItems.FHandle, Flags, ItemId, PChar(Child.Caption));
+        StrPLCopy(CapBuf, Child.Caption, 255);
+        AppendMenu(FItems.FHandle, Flags, ItemId, CapBuf);
       end;
     end;
   end;
