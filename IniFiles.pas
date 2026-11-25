@@ -56,7 +56,7 @@ end;
 
 function TIniFile.ReadString(const Section, Ident, Default: string): string;
 var
-  Buf: array[0..2047] of Char;
+  Buf: array[0..255] of Char;
   Len: Integer;
 begin
   Len := GetPrivateProfileString(
@@ -111,18 +111,23 @@ end;
 
 procedure TIniFile.ReadSection(const Section: string; Strings: TStrings);
 var
-  Buf: array[0..4095] of Char;
+  Buf: PChar;
   P: PChar;
 begin
   Strings.BeginUpdate;
   try
     Strings.Clear;
-    GetPrivateProfileString(PChar(Section), nil, '', Buf, SizeOf(Buf), PChar(FFileName));
-    P := Buf;
-    while P^ <> #0 do
-    begin
-      Strings.Add(StrPas(P));
-      P := P + StrLen(P) + 1;
+    GetMem(Buf, 2048);
+    try
+      GetPrivateProfileString(PChar(Section), nil, '', Buf, 2048, PChar(FFileName));
+      P := Buf;
+      while P^ <> #0 do
+      begin
+        Strings.Add(StrPas(P));
+        P := P + StrLen(P) + 1;
+      end;
+    finally
+      FreeMem(Buf, 2048);
     end;
   finally
     Strings.EndUpdate;
@@ -131,7 +136,7 @@ end;
 
 procedure TIniFile.ReadSections(Strings: TStrings);
 var
-  Buf: array[0..4095] of Char;
+  Buf: PChar;
   P: PChar;
   F: TextFile;
   Line: string;
@@ -139,35 +144,40 @@ begin
   Strings.BeginUpdate;
   try
     Strings.Clear;
-    { Najpierw próba przez API }
-    if GetPrivateProfileString(nil, nil, '', Buf, SizeOf(Buf), PChar(FFileName)) > 0 then
-    begin
-      P := Buf;
-      while P^ <> #0 do
+    GetMem(Buf, 2048);
+    try
+      { Najpierw próba przez API }
+      if GetPrivateProfileString(nil, nil, '', Buf, 2048, PChar(FFileName)) > 0 then
       begin
-        Strings.Add(StrPas(P));
-        P := P + StrLen(P) + 1;
-      end;
-    end
-    else
-    begin
-      { Fallback na skanowanie pliku tekstowego }
-      if FileExists(FFileName) then
+        P := Buf;
+        while P^ <> #0 do
+        begin
+          Strings.Add(StrPas(P));
+          P := P + StrLen(P) + 1;
+        end;
+      end
+      else
       begin
-        AssignFile(F, FFileName);
-        Reset(F);
-        try
-          while not Eof(F) do
-          begin
-            Readln(F, Line);
-            Line := Trim(Line);
-            if (Length(Line) > 2) and (Line[1] = '[') and (Line[Length(Line)] = ']') then
-              Strings.Add(Copy(Line, 2, Length(Line) - 2));
+        { Fallback na skanowanie pliku tekstowego }
+        if FileExists(FFileName) then
+        begin
+          AssignFile(F, FFileName);
+          Reset(F);
+          try
+            while not Eof(F) do
+            begin
+              Readln(F, Line);
+              Line := Trim(Line);
+              if (Length(Line) > 2) and (Line[1] = '[') and (Line[Length(Line)] = ']') then
+                Strings.Add(Copy(Line, 2, Length(Line) - 2));
+            end;
+          finally
+            CloseFile(F);
           end;
-        finally
-          CloseFile(F);
         end;
       end;
+    finally
+      FreeMem(Buf, 2048);
     end;
   finally
     Strings.EndUpdate;

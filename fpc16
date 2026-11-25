@@ -16,4 +16,4 @@ fi
 
 export PATH="$WATCOM_BIN:$PATH"
 
-exec "$FPC_BIN" -Twin16 -Pi8086 -Cp80486 -Op80486 -Wh -WmHUGE -Fu"$ROOT_DIR/wuil" "$@" -Fu"$RTL_UNITS" -Sh-
+exec "$FPC_BIN" -Twin16 -Pi8086 -Cp80486 -Op80486 -Wh -WmHUGE -Fu"$ROOT_DIR/wuil" "$@" -Fu"$RTL_UNITS" -Sh- -k"option stack=16384"

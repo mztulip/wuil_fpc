@@ -276,37 +276,50 @@ const
 var
   FormClassRegistered: Boolean = False;
 
+const
+  MaxAllocWnd = 64;
 type
-  PAllocateRec = ^TAllocateRec;
-  TAllocateRec = record
+  TAllocWndItem = record
+    Wnd: HWND;
     Method: TWndMethod;
   end;
 
+var
+  AllocWndList: array[0..MaxAllocWnd - 1] of TAllocWndItem;
+
 function AllocateWndProc(AHwnd: HWND; Msg: UINT; WParam: WPARAM; LParam: LPARAM): LRESULT; export;
 var
-  Rec: PAllocateRec;
+  i: Integer;
   M: TMessage;
 begin
-  Rec := PAllocateRec(GetProp(AHwnd, 'WUIL_AllocWnd'));
-  if (Rec <> nil) and Assigned(Rec^.Method) then
-  begin
-    M.Msg := Msg;
-    M.WParam := WParam;
-    M.LParam := LParam;
-    M.Result := 0;
-    Rec^.Method(M);
-    Result := M.Result;
-  end
-  else
-    Result := DefWindowProc(AHwnd, Msg, WParam, LParam);
+  for i := 0 to MaxAllocWnd - 1 do
+    if (AllocWndList[i].Wnd = AHwnd) and Assigned(AllocWndList[i].Method) then
+    begin
+      M.Msg := Msg;
+      M.WParam := WParam;
+      M.LParam := LParam;
+      M.Result := 0;
+      AllocWndList[i].Method(M);
+      Result := M.Result;
+      Exit;
+    end;
+  Result := DefWindowProc(AHwnd, Msg, WParam, LParam);
 end;
 
 function AllocateHWnd(Method: TWndMethod): HWND;
 var
   WndClass: TWndClass;
-  Rec: PAllocateRec;
   H: HWND;
+  i, Slot: Integer;
 begin
+  Slot := -1;
+  for i := 0 to MaxAllocWnd - 1 do
+    if AllocWndList[i].Wnd = 0 then
+    begin
+      Slot := i;
+      Break;
+    end;
+
   if not WinProcs.GetClassInfo(HInstance, 'WUIL_AllocateHWnd', WndClass) then
   begin
     FillChar(WndClass, SizeOf(WndClass), 0);
@@ -316,27 +329,27 @@ begin
     WinProcs.RegisterClass(WndClass);
   end;
   H := CreateWindow('WUIL_AllocateHWnd', '', WS_POPUP, 0, 0, 0, 0, 0, 0, HInstance, nil);
-  if H <> 0 then
+  if (H <> 0) and (Slot >= 0) then
   begin
-    New(Rec);
-    Rec^.Method := Method;
-    SetProp(H, 'WUIL_AllocWnd', THandle(Rec));
+    AllocWndList[Slot].Wnd := H;
+    AllocWndList[Slot].Method := Method;
   end;
   Result := H;
 end;
 
 procedure DeallocateHWnd(Wnd: HWND);
 var
-  Rec: PAllocateRec;
+  i: Integer;
 begin
   if (Wnd <> 0) and IsWindow(Wnd) then
   begin
-    Rec := PAllocateRec(GetProp(Wnd, 'WUIL_AllocWnd'));
-    if Rec <> nil then
-    begin
-      RemoveProp(Wnd, 'WUIL_AllocWnd');
-      Dispose(Rec);
-    end;
+    for i := 0 to MaxAllocWnd - 1 do
+      if AllocWndList[i].Wnd = Wnd then
+      begin
+        AllocWndList[i].Wnd := 0;
+        AllocWndList[i].Method := nil;
+        Break;
+      end;
     DestroyWindow(Wnd);
   end;
 end;
@@ -376,7 +389,22 @@ type
   end;
 
 procedure TDfmHelper.SetName(Reader: TReader; Component: TComponent; var aName: string);
+var
+  BaseName, Suffix: string;
+  Idx: Integer;
 begin
+  if (Component <> nil) and (Component.Owner <> nil) and
+     (Component.Owner.FindComponent(aName) <> nil) and
+     (Component.Owner.FindComponent(aName) <> Component) then
+  begin
+    BaseName := aName;
+    Idx := 1;
+    repeat
+      Str(Idx, Suffix);
+      aName := BaseName + '_' + Suffix;
+      Inc(Idx);
+    until Component.Owner.FindComponent(aName) = nil;
+  end;
   OutputDebugString(PChar('DFM name ' + aName + ': ' + Component.ClassName));
 end;
 
@@ -427,7 +455,12 @@ begin
       Rd.OnSetName := H.SetName;
       Rd.OnError := H.ReaderError;
       Rd.OnPropertyNotFound := H.PropNotFound;
-      Rd.ReadRootComponent(Instance);
+      try
+        Rd.ReadRootComponent(Instance);
+      except
+        on E: Exception do
+          OutputDebugString(PChar('DFM exception in ' + AClass.ClassName + ': ' + E.ClassName + ': ' + E.Message));
+      end;
     finally
       Rd.Free;
     end;
@@ -762,10 +795,15 @@ procedure TApplication.CreateForm(FormClass: TFormClass; var Reference);
 var
   Instance: TForm;
 begin
-  Instance := FormClass.Create(Self);
-  TForm(Reference) := Instance;
-  if FMainForm = nil then
-    FMainForm := Instance;
+  try
+    Instance := FormClass.Create(Self);
+    TForm(Reference) := Instance;
+    if FMainForm = nil then
+      FMainForm := Instance;
+  except
+    on E: Exception do
+      OutputDebugString(PChar('CreateForm EXCEPTION in ' + FormClass.ClassName + ': ' + E.ClassName + ': ' + E.Message));
+  end;
 end;
 
 procedure TApplication.Run;
