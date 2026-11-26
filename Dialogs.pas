@@ -139,7 +139,7 @@ type
     property Options: TColorDialogOptions read FOptions write FOptions default [];
   end;
 
-  tagCHOOSEFONT = record
+  tagCHOOSEFONT = packed record
     lStructSize: LongInt;
     hWndOwner: HWND;
     hDC: HDC;
@@ -153,7 +153,6 @@ type
     hInstance: THandle;
     lpszStyle: PChar;
     nFontType: Word;
-    wReserved: Word;
     nSizeMin: SmallInt;
     nSizeMax: SmallInt;
   end;
@@ -227,7 +226,7 @@ var
 function GetOpenFileName(var OpenFile: TOpenFileName): Bool; far; external 'COMMDLG' index 1;
 function GetSaveFileName(var OpenFile: TOpenFileName): Bool; far; external 'COMMDLG' index 2;
 function ChooseColor(var CC: TChooseColor): Bool; far; external 'COMMDLG' index 5;
-function ChooseFont(var CF: TChooseFont): Bool; far; external 'COMMDLG' index 6;
+function ChooseFont(var CF: TChooseFont): Bool; far; external 'COMMDLG' index 15;
 
 procedure ShowMessage(const Msg: string);
 procedure ShowMessageFmt(const Msg: string; const Params: array of const);
@@ -560,6 +559,7 @@ function TFontDialog.Execute: Boolean;
 var
   CF: TChooseFont;
   LF: TLogFont;
+  Style: TFontStyles;
 begin
   FillChar(CF, SizeOf(CF), 0);
   CF.lStructSize := SizeOf(CF);
@@ -603,6 +603,12 @@ begin
     FFont.Name := StrPas(LF.lfFaceName);
     FFont.Height := LF.lfHeight;
     FFont.Color := CF.rgbColors;
+    Style := [];
+    if LF.lfWeight >= 700 then Include(Style, fsBold);
+    if LF.lfItalic <> 0 then Include(Style, fsItalic);
+    if LF.lfUnderline <> 0 then Include(Style, fsUnderline);
+    if LF.lfStrikeOut <> 0 then Include(Style, fsStrikeOut);
+    FFont.Style := Style;
   end;
 end;
 
