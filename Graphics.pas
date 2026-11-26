@@ -234,7 +234,6 @@ type
     function GetCanvas: TCanvas;
     procedure SetHandle(Value: HBITMAP);
     procedure EnsureBitmap;
-    procedure ReleaseCanvas;
     procedure ReadData(Stream: TStream);
     procedure WriteData(Stream: TStream);
   protected
@@ -250,6 +249,7 @@ type
     procedure Assign(Source: TPersistent); override;
     procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
     procedure FreeImage;
+    procedure ReleaseCanvas;
     procedure LoadFromResourceName(Instance: THandle; const ResName: string);
     procedure LoadFromStream(Stream: TStream); override;
     procedure SaveToStream(Stream: TStream); override;
@@ -1311,6 +1311,43 @@ begin
   end;
 end;
 
+{ TBitmapCanvas }
+
+type
+  TBitmapCanvas = class(TCanvas)
+  private
+    FBitmap: TBitmap;
+  public
+    constructor Create(ABitmap: TBitmap);
+    destructor Destroy; override;
+  end;
+
+constructor TBitmapCanvas.Create(ABitmap: TBitmap);
+begin
+  inherited Create;
+  FBitmap := ABitmap;
+end;
+
+destructor TBitmapCanvas.Destroy;
+var
+  DC: HDC;
+begin
+  DC := FHandle;
+  if DC <> 0 then
+  begin
+    if (FBitmap <> nil) and (FBitmap.FOldBitmap <> 0) then
+    begin
+      SelectObject(DC, FBitmap.FOldBitmap);
+      FBitmap.FOldBitmap := 0;
+    end;
+    Handle := 0;
+    DeleteDC(DC);
+  end;
+  if (FBitmap <> nil) and (FBitmap.FCanvas = Self) then
+    FBitmap.FCanvas := nil;
+  inherited Destroy;
+end;
+
 { TBitmap }
 
 constructor TBitmap.Create;
@@ -1332,25 +1369,9 @@ begin
 end;
 
 procedure TBitmap.ReleaseCanvas;
-var
-  DC: HDC;
 begin
   if FCanvas <> nil then
-  begin
-    DC := FCanvas.FHandle;
-    if DC <> 0 then
-    begin
-      if FOldBitmap <> 0 then
-      begin
-        SelectObject(DC, FOldBitmap);
-        FOldBitmap := 0;
-      end;
-      FCanvas.Handle := 0;
-      DeleteDC(DC);
-    end;
     FCanvas.Free;
-    FCanvas := nil;
-  end;
 end;
 
 procedure TBitmap.EnsureBitmap;
@@ -1441,7 +1462,7 @@ begin
   EnsureBitmap;
   if FCanvas = nil then
   begin
-    FCanvas := TCanvas.Create;
+    FCanvas := TBitmapCanvas.Create(Self);
     DC := CreateCompatibleDC(0);
     FCanvas.Handle := DC;
     if FHandle <> 0 then
@@ -1511,17 +1532,14 @@ var
 begin
   if (ACanvas <> nil) and (ACanvas.FHandle <> 0) and (FHandle <> 0) then
   begin
+    ReleaseCanvas;
     W := Rect.Right - Rect.Left;
     H := Rect.Bottom - Rect.Top;
     if (W <= 0) or (W > FWidth) then W := FWidth;
     if (H <= 0) or (H > FHeight) then H := FHeight;
-    if (FCanvas <> nil) and (FCanvas.FHandle <> 0) then
+    MemDC := CreateCompatibleDC(ACanvas.FHandle);
+    if MemDC <> 0 then
     begin
-      BitBlt(ACanvas.FHandle, Rect.Left, Rect.Top, W, H, FCanvas.FHandle, 0, 0, SRCCOPY);
-    end
-    else
-    begin
-      MemDC := CreateCompatibleDC(ACanvas.FHandle);
       OldBmp := SelectObject(MemDC, FHandle);
       BitBlt(ACanvas.FHandle, Rect.Left, Rect.Top, W, H, MemDC, 0, 0, SRCCOPY);
       SelectObject(MemDC, OldBmp);

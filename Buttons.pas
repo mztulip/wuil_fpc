@@ -271,36 +271,44 @@ end;
 procedure DrawTransparentGlyph(DstDC: HDC; DstX, DstY, W, H: Integer; Glyph: TBitmap);
 var
   SrcDC, MaskDC: HDC;
-  MaskBmp, OldMask: HBITMAP;
+  OldSrc, MaskBmp, OldMask: HBITMAP;
   TransColor, OldSrcBk, OldDstBk, OldDstTx: LongInt;
 begin
   if (Glyph = nil) or Glyph.Empty or (W <= 0) or (H <= 0) then Exit;
-  SrcDC := Glyph.Canvas.Handle;
+  Glyph.ReleaseCanvas;
+  if Glyph.Handle = 0 then Exit;
+  SrcDC := CreateCompatibleDC(DstDC);
   if SrcDC = 0 then Exit;
-  TransColor := GetPixel(SrcDC, 0, Glyph.Height - 1);
-  MaskBmp := CreateBitmap(W, H, 1, 1, nil);
-  if MaskBmp = 0 then
-  begin
-    BitBlt(DstDC, DstX, DstY, W, H, SrcDC, 0, 0, SRCCOPY);
-    Exit;
+  OldSrc := SelectObject(SrcDC, Glyph.Handle);
+  try
+    TransColor := GetPixel(SrcDC, 0, Glyph.Height - 1);
+    MaskBmp := CreateBitmap(W, H, 1, 1, nil);
+    if MaskBmp = 0 then
+    begin
+      BitBlt(DstDC, DstX, DstY, W, H, SrcDC, 0, 0, SRCCOPY);
+      Exit;
+    end;
+    MaskDC := CreateCompatibleDC(DstDC);
+    OldMask := SelectObject(MaskDC, MaskBmp);
+    OldSrcBk := SetBkColor(SrcDC, TransColor);
+    BitBlt(MaskDC, 0, 0, W, H, SrcDC, 0, 0, SRCCOPY);
+    SetBkColor(SrcDC, OldSrcBk);
+
+    OldDstBk := SetBkColor(DstDC, $00FFFFFF);
+    OldDstTx := SetTextColor(DstDC, $00000000);
+    BitBlt(DstDC, DstX, DstY, W, H, SrcDC, 0, 0, SRCINVERT);
+    BitBlt(DstDC, DstX, DstY, W, H, MaskDC, 0, 0, SRCAND);
+    BitBlt(DstDC, DstX, DstY, W, H, SrcDC, 0, 0, SRCINVERT);
+    SetBkColor(DstDC, OldDstBk);
+    SetTextColor(DstDC, OldDstTx);
+
+    SelectObject(MaskDC, OldMask);
+    DeleteDC(MaskDC);
+    DeleteObject(MaskBmp);
+  finally
+    SelectObject(SrcDC, OldSrc);
+    DeleteDC(SrcDC);
   end;
-  MaskDC := CreateCompatibleDC(DstDC);
-  OldMask := SelectObject(MaskDC, MaskBmp);
-  OldSrcBk := SetBkColor(SrcDC, TransColor);
-  BitBlt(MaskDC, 0, 0, W, H, SrcDC, 0, 0, SRCCOPY);
-  SetBkColor(SrcDC, OldSrcBk);
-
-  OldDstBk := SetBkColor(DstDC, $00FFFFFF);
-  OldDstTx := SetTextColor(DstDC, $00000000);
-  BitBlt(DstDC, DstX, DstY, W, H, SrcDC, 0, 0, SRCINVERT);
-  BitBlt(DstDC, DstX, DstY, W, H, MaskDC, 0, 0, SRCAND);
-  BitBlt(DstDC, DstX, DstY, W, H, SrcDC, 0, 0, SRCINVERT);
-  SetBkColor(DstDC, OldDstBk);
-  SetTextColor(DstDC, OldDstTx);
-
-  SelectObject(MaskDC, OldMask);
-  DeleteDC(MaskDC);
-  DeleteObject(MaskBmp);
 end;
 
 procedure TSpeedButton.Paint;

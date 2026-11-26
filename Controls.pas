@@ -374,18 +374,8 @@ begin
     case Msg of
       WM_COMMAND:
       begin
-        { Sprawdzenie czy komunikat pochodzi od kontrolki potomnej }
-        if ALParam <> 0 then
-        begin
-          Ctrl := FindControl(HWND(Loword(ALParam)));
-          if (Ctrl <> nil) and (AWParam = BN_CLICKED) then
-            Ctrl.Click;
-        end
-        else
-        begin
-          { Komunikat z menu (ID w AWParam) }
+        if ALParam = 0 then
           DispatchMenuCommand(AWParam);
-        end;
       end;
     end;
 
@@ -1137,7 +1127,7 @@ begin
     HInstance,
     Params.Param
   );
-  if FHandle <> 0 then
+  if (FHandle <> 0) and (StrIComp(Params.WinClassName, VclClassName) = 0) then
     SetWindowLong(FHandle, 0, LongInt(Pointer(Self)));
 end;
 

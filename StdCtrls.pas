@@ -54,6 +54,7 @@ type
     FCancel: Boolean;
     FModalResult: TModalResult;
     procedure SetDefault(Value: Boolean);
+    procedure CNCommand(var Message: TWMCommand); message CN_COMMAND;
   protected
     procedure CreateParams(var Params: TCreateParams); override;
   public
@@ -609,6 +610,12 @@ begin
     if (FParent <> nil) and (FParent is TForm) then
       TForm(FParent).ModalResult := FModalResult;
   end;
+end;
+
+procedure TButton.CNCommand(var Message: TWMCommand);
+begin
+  if Message.NotifyCode = BN_CLICKED then
+    Click;
 end;
 
 { TCheckBox }
