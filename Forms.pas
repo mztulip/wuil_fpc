@@ -980,6 +980,26 @@ end;
 
 { TApplication }
 
+var
+  AppClassRegistered: Boolean = False;
+
+procedure RegisterAppClass;
+var
+  WC: TWndClass;
+begin
+  if not AppClassRegistered then
+  begin
+    FillChar(WC, SizeOf(WC), 0);
+    WC.style := 0;
+    WC.lpfnWndProc := @DefWindowProc;
+    WC.hInstance := HInstance;
+    WC.hCursor := LoadCursor(0, IDC_ARROW);
+    WC.lpszClassName := 'TApplication';
+    WinProcs.RegisterClass(WC);
+    AppClassRegistered := True;
+  end;
+end;
+
 constructor TApplication.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
@@ -991,10 +1011,19 @@ begin
   FActive := True;
   FHintPause := 500;
   FHintColor := $80FFFF;
+  RegisterAppClass;
+  FHandle := CreateWindow('TApplication', 'VCL Application',
+    WS_POPUP or WS_CAPTION or WS_CLIPSIBLINGS or WS_SYSMENU or WS_MINIMIZEBOX,
+    0, 0, 0, 0, 0, 0, HInstance, nil);
 end;
 
 destructor TApplication.Destroy;
 begin
+  if FHandle <> 0 then
+  begin
+    DestroyWindow(FHandle);
+    FHandle := 0;
+  end;
   FIcon.Free;
   inherited Destroy;
 end;
@@ -1117,8 +1146,15 @@ begin
 end;
 
 procedure TApplication.SetTitle(const Value: string);
+var
+  Buf: array[0..255] of Char;
 begin
   FTitle := Value;
+  if FHandle <> 0 then
+  begin
+    StrPLCopy(Buf, FTitle, 255);
+    SetWindowText(FHandle, Buf);
+  end;
 end;
 
 procedure TApplication.HelpContext(Context: Longint);
