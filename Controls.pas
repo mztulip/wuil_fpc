@@ -150,9 +150,9 @@ type
     procedure KeyPress(var Key: Char); virtual;
     procedure Resize; virtual;
     function GetClientWidth: Integer;
-    procedure SetClientWidth(Value: Integer);
+    procedure SetClientWidth(Value: Integer); virtual;
     function GetClientHeight: Integer;
-    procedure SetClientHeight(Value: Integer);
+    procedure SetClientHeight(Value: Integer); virtual;
     procedure WndProc(var Message: TMessage); virtual;
     procedure WMLButtonDown(var Message: TWMLButtonDown); message WM_LBUTTONDOWN;
     procedure WMRButtonDown(var Message: TWMRButtonDown); message WM_RBUTTONDOWN;

@@ -91,6 +91,8 @@ type
     FScaled: Boolean;
     FPixelsPerInch: Integer;
     FTextHeight: Integer;
+    FPendingClientWidth: Integer;
+    FPendingClientHeight: Integer;
     procedure SetBorderStyle(Value: TFormBorderStyle);
     procedure SetWindowState(Value: TWindowState);
     procedure SetIcon(Value: TIcon);
@@ -98,6 +100,8 @@ type
     procedure SetActiveControl(Value: TWinControl);
   protected
     procedure SetVisible(Value: Boolean); override;
+    procedure SetClientWidth(Value: Integer); override;
+    procedure SetClientHeight(Value: Integer); override;
     procedure CreateParams(var Params: TCreateParams); override;
     procedure CreateWnd; override;
     procedure Paint; override;
@@ -585,9 +589,32 @@ begin
   end;
 end;
 
+procedure TForm.SetClientWidth(Value: Integer);
+begin
+  if HandleAllocated then
+    inherited SetClientWidth(Value)
+  else
+  begin
+    FPendingClientWidth := Value;
+    FWidth := Value;
+  end;
+end;
+
+procedure TForm.SetClientHeight(Value: Integer);
+begin
+  if HandleAllocated then
+    inherited SetClientHeight(Value)
+  else
+  begin
+    FPendingClientHeight := Value;
+    FHeight := Value;
+  end;
+end;
+
 procedure TForm.CreateParams(var Params: TCreateParams);
 var
   WStyle: LongInt;
+  R: TRect;
 begin
   RegisterFormClass;
   inherited CreateParams(Params);
@@ -628,6 +655,33 @@ begin
   if FFormStyle = fsStayOnTop then
     Params.ExStyle := Params.ExStyle or $00000008; { WS_EX_TOPMOST }
   Params.WndParent := 0;
+
+  if (FPendingClientWidth > 0) or (FPendingClientHeight > 0) then
+  begin
+    R.Left := 0;
+    R.Top := 0;
+    if FPendingClientWidth > 0 then
+      R.Right := FPendingClientWidth
+    else
+      R.Right := FWidth;
+    if FPendingClientHeight > 0 then
+      R.Bottom := FPendingClientHeight
+    else
+      R.Bottom := FHeight;
+    AdjustWindowRect(R, Params.Style, FMenu <> nil);
+    if FPendingClientWidth > 0 then
+    begin
+      FWidth := R.Right - R.Left;
+      Params.Width := FWidth;
+    end;
+    if FPendingClientHeight > 0 then
+    begin
+      FHeight := R.Bottom - R.Top;
+      Params.Height := FHeight;
+    end;
+    FPendingClientWidth := 0;
+    FPendingClientHeight := 0;
+  end;
 
   if FPosition = poScreenCenter then
   begin
