@@ -52,6 +52,7 @@ type
     function GetItem(Index: Integer): TMenuItem;
     function GetShortCutText: string;
     procedure SetShortCutText(const Value: string);
+    procedure ClearHandles;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -96,12 +97,12 @@ type
     FWindowHandle: HWND;
     function GetHandle: HMENU; virtual;
     procedure WndProc(var Message: TMessage); virtual;
-    function DispatchCommand(ACommand: Word): Boolean;
-    function DispatchPopup(AHandle: HMENU): Boolean;
     function IsAccel(VK: Word; const Str: string): Boolean;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+    function DispatchCommand(ACommand: Word): Boolean;
+    function DispatchPopup(AHandle: HMENU): Boolean;
     function FindItem(Value: Word; Kind: TFindItemKind): TMenuItem;
     procedure GetChildren(Proc: TGetChildProc; Root: TComponent); override;
     property Items: TMenuItem read FItems;
@@ -221,17 +222,20 @@ begin
 end;
 
 destructor TMenuItem.Destroy;
+var
+  OldH: HMENU;
 begin
   if FParent <> nil then
     FParent.Remove(Self);
+  OldH := FHandle;
+  if OldH <> 0 then
+  begin
+    ClearHandles;
+    DestroyMenu(OldH);
+  end;
   Clear;
   FItems.Free;
   UnregisterMenuItem(Self);
-  if FHandle <> 0 then
-  begin
-    DestroyMenu(FHandle);
-    FHandle := 0;
-  end;
   inherited Destroy;
 end;
 
@@ -346,15 +350,40 @@ begin
     FOnClick(Self);
 end;
 
-procedure TMenuItem.RebuildHandle;
+procedure TMenuItem.ClearHandles;
+var
+  I: Integer;
 begin
-  if FHandle <> 0 then
+  FHandle := 0;
+  if FItems <> nil then
+    for I := 0 to FItems.Count - 1 do
+      TMenuItem(FItems[I]).ClearHandles;
+end;
+
+procedure TMenuItem.RebuildHandle;
+var
+  Root: TMenuItem;
+  OldH: HMENU;
+  M: TMenu;
+begin
+  Root := Self;
+  while Root.FParent <> nil do
+    Root := Root.FParent;
+  OldH := Root.FHandle;
+  if OldH <> 0 then
   begin
-    DestroyMenu(FHandle);
-    FHandle := 0;
+    Root.ClearHandles;
+    DestroyMenu(OldH);
+    if Root.Owner is TMainMenu then
+    begin
+      M := TMenu(Root.Owner);
+      if (M.WindowHandle <> 0) and IsWindow(M.WindowHandle) then
+      begin
+        WinProcs.SetMenu(M.WindowHandle, M.Handle);
+        DrawMenuBar(M.WindowHandle);
+      end;
+    end;
   end;
-  if FParent <> nil then
-    FParent.RebuildHandle;
 end;
 
 function TMenuItem.GetHandle: HMENU;
@@ -423,12 +452,12 @@ begin
   if FChecked <> Value then
   begin
     FChecked := Value;
-    if FHandle <> 0 then
+    if (FParent <> nil) and (FParent.FHandle <> 0) then
     begin
       if FChecked then
-        CheckMenuItem(FHandle, FCommand, MF_BYCOMMAND or MF_CHECKED)
+        CheckMenuItem(FParent.FHandle, FCommand, MF_BYCOMMAND or MF_CHECKED)
       else
-        CheckMenuItem(FHandle, FCommand, MF_BYCOMMAND or MF_UNCHECKED);
+        CheckMenuItem(FParent.FHandle, FCommand, MF_BYCOMMAND or MF_UNCHECKED);
     end;
   end;
 end;
@@ -438,12 +467,12 @@ begin
   if FEnabled <> Value then
   begin
     FEnabled := Value;
-    if FHandle <> 0 then
+    if (FParent <> nil) and (FParent.FHandle <> 0) then
     begin
       if FEnabled then
-        EnableMenuItem(FHandle, FCommand, MF_BYCOMMAND or MF_ENABLED)
+        EnableMenuItem(FParent.FHandle, FCommand, MF_BYCOMMAND or MF_ENABLED)
       else
-        EnableMenuItem(FHandle, FCommand, MF_BYCOMMAND or MF_GRAYED);
+        EnableMenuItem(FParent.FHandle, FCommand, MF_BYCOMMAND or MF_GRAYED);
     end;
   end;
 end;
@@ -574,8 +603,17 @@ begin
 end;
 
 function TMenu.DispatchPopup(AHandle: HMENU): Boolean;
+var
+  Item: TMenuItem;
 begin
-  Result := False;
+  Item := FindItem(Word(AHandle), fkHandle);
+  if Item <> nil then
+  begin
+    Item.Click;
+    Result := True;
+  end
+  else
+    Result := False;
 end;
 
 procedure TMenu.WndProc(var Message: TMessage);

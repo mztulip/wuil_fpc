@@ -552,6 +552,8 @@ begin
   end;
   if Screen <> nil then
     Screen.FForms.Remove(Self);
+  if FMenu <> nil then
+    FMenu.WindowHandle := 0;
   DoDestroy;
   FDesigner.Free;
   FIcon.Free;
@@ -638,7 +640,10 @@ procedure TForm.CreateWnd;
 begin
   inherited CreateWnd;
   if (FMenu <> nil) and HandleAllocated then
+  begin
+    FMenu.WindowHandle := FHandle;
     WinProcs.SetMenu(FHandle, FMenu.Handle);
+  end;
 end;
 
 procedure TForm.Show;
@@ -651,6 +656,7 @@ begin
     CreateHandle;
   if (FMenu <> nil) and HandleAllocated then
   begin
+    FMenu.WindowHandle := FHandle;
     WinProcs.SetMenu(FHandle, FMenu.Handle);
     DrawMenuBar(FHandle);
   end;
@@ -808,6 +814,13 @@ begin
         Message.Result := 0;
         Exit;
       end;
+    WM_INITMENUPOPUP:
+      begin
+        if FMenu <> nil then
+          FMenu.DispatchPopup(Message.WParam);
+        Message.Result := 0;
+        Exit;
+      end;
     WM_ACTIVATE:
       begin
         if Loword(Message.WParam) <> WA_INACTIVE then
@@ -868,11 +881,16 @@ procedure TForm.SetMenu(Value: TMainMenu);
 begin
   if FMenu <> Value then
   begin
+    if FMenu <> nil then
+      FMenu.WindowHandle := 0;
     FMenu := Value;
     if HandleAllocated then
     begin
       if FMenu <> nil then
-        WinProcs.SetMenu(FHandle, FMenu.Handle)
+      begin
+        FMenu.WindowHandle := FHandle;
+        WinProcs.SetMenu(FHandle, FMenu.Handle);
+      end
       else
         WinProcs.SetMenu(FHandle, 0);
       DrawMenuBar(FHandle);
