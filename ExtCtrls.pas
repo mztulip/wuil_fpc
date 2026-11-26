@@ -129,6 +129,7 @@ type
   TPage = class(TWinControl)
   public
     constructor Create(AOwner: TComponent); override;
+    procedure WndProc(var Message: TMessage); override;
   end;
 
   TNotebook = class(TWinControl)
@@ -139,16 +140,19 @@ type
     function GetActivePage: string;
     procedure SetActivePage(const Value: string);
     procedure SetPageIndex(Value: Integer);
+    function GetPages: TStrings;
     procedure SetPages(Value: TStrings);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
+    procedure Resize; override;
     procedure ShowCurrentPage; virtual;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+    procedure CreateHandle; override;
     property ActivePage: string read GetActivePage write SetActivePage;
   published
-    property Pages: TStrings read FPages write SetPages;
+    property Pages: TStrings read GetPages write SetPages;
     property PageIndex: Integer read FPageIndex write SetPageIndex default 0;
     property OnPageChanged: TNotifyEvent read FOnPageChanged write FOnPageChanged;
     property Enabled;
@@ -676,6 +680,25 @@ begin
   FVisible := True;
 end;
 
+procedure TPage.WndProc(var Message: TMessage);
+var
+  DC: HDC;
+  PS: TPaintStruct;
+begin
+  if Message.Msg = WM_PAINT then
+  begin
+    DC := BeginPaint(FHandle, PS);
+    try
+      PaintControls(DC, nil);
+    finally
+      EndPaint(FHandle, PS);
+    end;
+    Message.Result := 0;
+    Exit;
+  end;
+  inherited WndProc(Message);
+end;
+
 { TNotebook }
 
 constructor TNotebook.Create(AOwner: TComponent);
@@ -688,14 +711,7 @@ begin
 end;
 
 destructor TNotebook.Destroy;
-var
-  I: Integer;
 begin
-  for I := 0 to FPages.Count - 1 do
-  begin
-    if FPages.Objects[I] <> nil then
-      TObject(FPages.Objects[I]).Free;
-  end;
   FPages.Free;
   inherited Destroy;
 end;
@@ -706,21 +722,62 @@ begin
   Params.Style := Params.Style or WS_CLIPCHILDREN;
 end;
 
+procedure TNotebook.CreateHandle;
+begin
+  inherited CreateHandle;
+  ShowCurrentPage;
+end;
+
+procedure TNotebook.Resize;
+begin
+  inherited Resize;
+  ShowCurrentPage;
+end;
+
 function TNotebook.GetActivePage: string;
+var
+  I, PageIdx: Integer;
 begin
   if (FPageIndex >= 0) and (FPageIndex < FPages.Count) then
     Result := FPages[FPageIndex]
   else
+  begin
     Result := '';
+    PageIdx := 0;
+    for I := 0 to ControlCount - 1 do
+      if Controls[I] is TPage then
+      begin
+        if PageIdx = FPageIndex then
+        begin
+          Result := Controls[I].Caption;
+          Exit;
+        end;
+        Inc(PageIdx);
+      end;
+  end;
 end;
 
 procedure TNotebook.SetActivePage(const Value: string);
 var
-  Idx: Integer;
+  Idx, I, PageIdx: Integer;
 begin
   Idx := FPages.IndexOf(Value);
   if Idx >= 0 then
-    SetPageIndex(Idx);
+    SetPageIndex(Idx)
+  else
+  begin
+    PageIdx := 0;
+    for I := 0 to ControlCount - 1 do
+      if Controls[I] is TPage then
+      begin
+        if CompareText(Controls[I].Caption, Value) = 0 then
+        begin
+          SetPageIndex(PageIdx);
+          Exit;
+        end;
+        Inc(PageIdx);
+      end;
+  end;
 end;
 
 procedure TNotebook.SetPageIndex(Value: Integer);
@@ -734,25 +791,59 @@ begin
   end;
 end;
 
+function TNotebook.GetPages: TStrings;
+var
+  I, PageIdx: Integer;
+  NeedSync: Boolean;
+begin
+  PageIdx := 0;
+  NeedSync := False;
+  for I := 0 to ControlCount - 1 do
+    if Controls[I] is TPage then
+    begin
+      if (PageIdx >= FPages.Count) or (FPages[PageIdx] <> Controls[I].Caption) then
+        NeedSync := True;
+      Inc(PageIdx);
+    end;
+  if PageIdx <> FPages.Count then
+    NeedSync := True;
+  if NeedSync and (PageIdx > 0) then
+  begin
+    FPages.Clear;
+    for I := 0 to ControlCount - 1 do
+      if Controls[I] is TPage then
+        FPages.AddObject(Controls[I].Caption, Controls[I]);
+  end;
+  Result := FPages;
+end;
+
 procedure TNotebook.SetPages(Value: TStrings);
 begin
   FPages.Assign(Value);
-  if FPageIndex >= FPages.Count then
+  if (FPages.Count > 0) and (FPageIndex >= FPages.Count) then
     FPageIndex := FPages.Count - 1;
   ShowCurrentPage;
 end;
 
 procedure TNotebook.ShowCurrentPage;
 var
-  I: Integer;
-  P: TControl;
+  I, PageIdx: Integer;
+  P: TWinControl;
 begin
-  for I := 0 to FPages.Count - 1 do
+  PageIdx := 0;
+  for I := 0 to ControlCount - 1 do
   begin
-    if FPages.Objects[I] is TControl then
+    if Controls[I] is TPage then
     begin
-      P := TControl(FPages.Objects[I]);
-      P.Visible := (I = FPageIndex);
+      P := TWinControl(Controls[I]);
+      P.SetBounds(0, 0, FWidth, FHeight);
+      P.Visible := (PageIdx = FPageIndex);
+      if P.Visible and P.HandleAllocated then
+      begin
+        BringWindowToTop(P.Handle);
+        InvalidateRect(P.Handle, nil, True);
+      end;
+      Inc(PageIdx);
     end;
   end;
 end;

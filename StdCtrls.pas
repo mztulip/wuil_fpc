@@ -20,7 +20,7 @@ type
   TScrollStyle = (ssNone, ssHorizontal, ssVertical, ssBoth);
   TAlignment = Classes.TAlignment;
 
-  TLabel = class(TControl)
+  TLabel = class(TGraphicControl)
   private
     FAlignment: TAlignment;
     FAutoSize: Boolean;
@@ -530,35 +530,50 @@ end;
 procedure TLabel.Paint;
 var
   DC: HDC;
+  OwnDC: Boolean;
   R: RECT;
   Flags: Word;
 begin
-  if (FParent <> nil) and FParent.HandleAllocated then
+  if Length(FCaption) = 0 then Exit;
+  OwnDC := False;
+  DC := Canvas.Handle;
+  if DC <> 0 then
   begin
+    R.left := 0;
+    R.top := 0;
+    R.right := FWidth;
+    R.bottom := FHeight;
+  end
+  else
+  begin
+    if (FParent = nil) or not FParent.HandleAllocated then Exit;
     DC := GetDC(FParent.Handle);
-    if DC <> 0 then
-    begin
-      SetBkMode(DC, TRANSPARENT);
-      SetTextColor(DC, ColorToRGB(FFont.Color));
-      if FFont.Handle <> 0 then
-        SelectObject(DC, FFont.Handle);
-      R.left := FLeft;
-      R.top := FTop;
-      R.right := FLeft + FWidth;
-      R.bottom := FTop + FHeight;
+    if DC = 0 then Exit;
+    OwnDC := True;
+    R.left := FLeft;
+    R.top := FTop;
+    R.right := FLeft + FWidth;
+    R.bottom := FTop + FHeight;
+  end;
+  try
+    SetBkMode(DC, TRANSPARENT);
+    SetTextColor(DC, ColorToRGB(FFont.Color));
+    if FFont.Handle <> 0 then
+      SelectObject(DC, FFont.Handle);
 
-      Flags := DT_NOPREFIX;
-      if FWordWrap then
-        Flags := Flags or DT_WORDBREAK;
-      case FAlignment of
-        taLeftJustify:  Flags := Flags or DT_LEFT;
-        taRightJustify: Flags := Flags or DT_RIGHT;
-        taCenter:       Flags := Flags or DT_CENTER;
-      end;
-
-      DrawText(DC, @FCaption[1], Length(FCaption), R, Flags);
-      ReleaseDC(FParent.Handle, DC);
+    Flags := 0;
+    if FWordWrap then
+      Flags := Flags or DT_WORDBREAK;
+    case FAlignment of
+      taLeftJustify:  Flags := Flags or DT_LEFT;
+      taRightJustify: Flags := Flags or DT_RIGHT;
+      taCenter:       Flags := Flags or DT_CENTER;
     end;
+
+    DrawText(DC, @FCaption[1], Length(FCaption), R, Flags);
+  finally
+    if OwnDC then
+      ReleaseDC(FParent.Handle, DC);
   end;
 end;
 
