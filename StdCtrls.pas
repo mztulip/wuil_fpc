@@ -80,6 +80,7 @@ type
     procedure SetState(Value: TCheckBoxState);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
+    procedure CreateWnd; override;
   public
     constructor Create(AOwner: TComponent); override;
     procedure Click; override;
@@ -100,6 +101,7 @@ type
     procedure SetChecked(Value: Boolean);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
+    procedure CreateWnd; override;
   public
     constructor Create(AOwner: TComponent); override;
     procedure Click; override;
@@ -654,6 +656,20 @@ begin
   Params.Style := WS_CHILD or WS_VISIBLE or WS_TABSTOP or BS_AUTOCHECKBOX;
 end;
 
+procedure TCheckBox.CreateWnd;
+var
+  CheckFlag: Word;
+begin
+  inherited CreateWnd;
+  case FState of
+    cbChecked:   CheckFlag := 1;
+    cbGrayed:    CheckFlag := 2;
+    else         CheckFlag := 0;
+  end;
+  if FHandle <> 0 then
+    SendMessage(FHandle, BM_SETCHECK, CheckFlag, 0);
+end;
+
 procedure TCheckBox.SetChecked(Value: Boolean);
 begin
   if Value then
@@ -716,9 +732,21 @@ begin
   Params.Style := WS_CHILD or WS_VISIBLE or WS_TABSTOP or BS_AUTORADIOBUTTON;
 end;
 
+procedure TRadioButton.CreateWnd;
+var
+  CheckFlag: Word;
+begin
+  inherited CreateWnd;
+  if FChecked then CheckFlag := 1 else CheckFlag := 0;
+  if FHandle <> 0 then
+    SendMessage(FHandle, BM_SETCHECK, CheckFlag, 0);
+end;
+
 procedure TRadioButton.SetChecked(Value: Boolean);
 var
   CheckFlag: Word;
+  I: Integer;
+  Sibling: TControl;
 begin
   if FChecked <> Value then
   begin
@@ -728,6 +756,13 @@ begin
       if FChecked then CheckFlag := 1 else CheckFlag := 0;
       SendMessage(FHandle, BM_SETCHECK, CheckFlag, 0);
     end;
+    if FChecked and (FParent <> nil) then
+      for I := 0 to FParent.ControlCount - 1 do
+      begin
+        Sibling := FParent.Controls[I];
+        if (Sibling <> Self) and (Sibling is TRadioButton) then
+          TRadioButton(Sibling).SetChecked(False);
+      end;
   end;
 end;
 
@@ -1073,9 +1108,9 @@ begin
     Params.Style := Params.Style or LBS_MULTICOLUMN;
   case FStyle of
     lbOwnerDrawFixed:
-      Params.Style := Params.Style or LBS_OWNERDRAWFIXED;
+      Params.Style := Params.Style or LBS_OWNERDRAWFIXED or LBS_HASSTRINGS;
     lbOwnerDrawVariable:
-      Params.Style := Params.Style or LBS_OWNERDRAWVARIABLE;
+      Params.Style := Params.Style or LBS_OWNERDRAWVARIABLE or LBS_HASSTRINGS;
   end;
 end;
 
@@ -1146,21 +1181,15 @@ end;
 
 function TCustomListBox.GetSelected(Index: Integer): Boolean;
 begin
-  if HandleAllocated then
-    Result := SendMessage(FHandle, LB_GETSEL, Index, 0) > 0
-  else
-    Result := False;
+  Result := SendMessage(Handle, LB_GETSEL, Index, 0) > 0;
 end;
 
 procedure TCustomListBox.SetSelected(Index: Integer; Value: Boolean);
 var
   Flag: Word;
 begin
-  if HandleAllocated then
-  begin
-    if Value then Flag := 1 else Flag := 0;
-    SendMessage(FHandle, LB_SETSEL, Flag, Index);
-  end;
+  if Value then Flag := 1 else Flag := 0;
+  SendMessage(Handle, LB_SETSEL, Flag, Index);
 end;
 
 function TCustomListBox.GetTopIndex: Integer;

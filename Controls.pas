@@ -795,6 +795,7 @@ end;
 procedure TControl.SetFont(Value: TFont);
 begin
   FFont.Assign(Value);
+  FParentFont := False;
   Invalidate;
 end;
 
@@ -806,7 +807,11 @@ begin
       FParent.FControls.Remove(Self);
     FParent := AParent;
     if FParent <> nil then
+    begin
       FParent.FControls.Add(Self);
+      if FParentFont and (FParent.FFont <> nil) then
+        FFont.Assign(FParent.FFont);
+    end;
   end;
 end;
 
@@ -1049,7 +1054,12 @@ end;
 function TWinControl.GetHandle: HWND;
 begin
   if not HandleAllocated then
-    CreateHandle;
+  begin
+    if FParent <> nil then
+      FParent.GetHandle;
+    if not HandleAllocated then
+      CreateHandle;
+  end;
   Result := FHandle;
 end;
 
@@ -1138,9 +1148,18 @@ end;
 procedure TWinControl.CreateWnd;
 var
   Params: TCreateParams;
+  FontOwner: TControl;
 begin
   CreateParams(Params);
   CreateWindowHandle(Params);
+  if FHandle <> 0 then
+  begin
+    FontOwner := Self;
+    while FontOwner.FParentFont and (FontOwner.FParent <> nil) do
+      FontOwner := FontOwner.FParent;
+    if FontOwner.FFont <> nil then
+      SendMessage(FHandle, WM_SETFONT, FontOwner.FFont.Handle, 0);
+  end;
 end;
 
 procedure TWinControl.DestroyWnd;
