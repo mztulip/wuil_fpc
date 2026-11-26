@@ -1073,6 +1073,9 @@ begin
   if FVisible <> Value then
   begin
     FVisible := Value;
+    if FVisible and not HandleAllocated and
+       (FParent <> nil) and FParent.HandleAllocated then
+      CreateHandle;
     if HandleAllocated then
     begin
       if FVisible then
@@ -1182,8 +1185,16 @@ begin
 end;
 
 procedure TWinControl.DestroyHandle;
+var
+  I: Integer;
 begin
-  DestroyWnd;
+  if HandleAllocated then
+  begin
+    for I := 0 to FControls.Count - 1 do
+      if TObject(FControls[I]) is TWinControl then
+        TWinControl(FControls[I]).DestroyHandle;
+    DestroyWnd;
+  end;
 end;
 
 procedure TWinControl.RecreateWnd;

@@ -81,6 +81,7 @@ type
   protected
     procedure CreateParams(var Params: TCreateParams); override;
     procedure CreateWnd; override;
+    procedure DestroyWnd; override;
   public
     constructor Create(AOwner: TComponent); override;
     procedure Click; override;
@@ -102,6 +103,7 @@ type
   protected
     procedure CreateParams(var Params: TCreateParams); override;
     procedure CreateWnd; override;
+    procedure DestroyWnd; override;
   public
     constructor Create(AOwner: TComponent); override;
     procedure Click; override;
@@ -153,6 +155,8 @@ type
     procedure SetSelText(const Value: string);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
+    procedure CreateWnd; override;
+    procedure DestroyWnd; override;
     procedure Change; virtual;
     property AutoSelect: Boolean read FAutoSelect write FAutoSelect default True;
     property CharCase: TEditCharCase read FCharCase write FCharCase default ecNormal;
@@ -257,6 +261,8 @@ type
     FSorted: Boolean;
     FIntegralHeight: Boolean;
     FColumns: Integer;
+    FSaveItemIndex: Integer;
+    FSaveTopIndex: Integer;
     FOnDblClick: TNotifyEvent;
     FOnDrawItem: TDrawItemEvent;
     FOnMeasureItem: TMeasureItemEvent;
@@ -272,6 +278,8 @@ type
   protected
     procedure CreateParams(var Params: TCreateParams); override;
     procedure CreateWindowHandle(const Params: TCreateParams); override;
+    procedure CreateWnd; override;
+    procedure DestroyWnd; override;
     procedure DblClick; virtual;
     procedure DrawItem(Index: Integer; Rect: TRect; State: TOwnerDrawState); virtual;
     procedure MeasureItem(Index: Integer; var Height: Integer); virtual;
@@ -371,6 +379,7 @@ type
     FDropDownCount: Integer;
     FItemHeight: Integer;
     FMaxLength: Integer;
+    FSaveItemIndex: Integer;
     FOnChange: TNotifyEvent;
     FOnDropDown: TNotifyEvent;
     FOnDrawItem: TDrawItemEvent;
@@ -390,6 +399,8 @@ type
   protected
     procedure CreateParams(var Params: TCreateParams); override;
     procedure CreateWindowHandle(const Params: TCreateParams); override;
+    procedure CreateWnd; override;
+    procedure DestroyWnd; override;
     procedure Change; virtual;
     procedure MeasureItem(Index: Integer; var Height: Integer); virtual;
     procedure DrawItem(Index: Integer; Rect: TRect; State: TOwnerDrawState); virtual;
@@ -473,6 +484,8 @@ type
     procedure SetSelText(const Value: string);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
+    procedure CreateWnd; override;
+    procedure DestroyWnd; override;
     procedure Change; virtual;
   public
     constructor Create(AOwner: TComponent); override;
@@ -597,7 +610,9 @@ begin
   inherited CreateParams(Params);
   FillChar(Params.WinClassName, SizeOf(Params.WinClassName), 0);
   StrCopy(Params.WinClassName, 'BUTTON');
-  Params.Style := WS_CHILD or WS_VISIBLE or WS_TABSTOP;
+  Params.Style := WS_CHILD or WS_TABSTOP;
+  if FVisible then
+    Params.Style := Params.Style or WS_VISIBLE;
   if FDefault then
     Params.Style := Params.Style or BS_DEFPUSHBUTTON
   else
@@ -653,7 +668,9 @@ begin
   inherited CreateParams(Params);
   FillChar(Params.WinClassName, SizeOf(Params.WinClassName), 0);
   StrCopy(Params.WinClassName, 'BUTTON');
-  Params.Style := WS_CHILD or WS_VISIBLE or WS_TABSTOP or BS_AUTOCHECKBOX;
+  Params.Style := WS_CHILD or WS_TABSTOP or BS_AUTOCHECKBOX;
+  if FVisible then
+    Params.Style := Params.Style or WS_VISIBLE;
 end;
 
 procedure TCheckBox.CreateWnd;
@@ -668,6 +685,20 @@ begin
   end;
   if FHandle <> 0 then
     SendMessage(FHandle, BM_SETCHECK, CheckFlag, 0);
+end;
+
+procedure TCheckBox.DestroyWnd;
+begin
+  if HandleAllocated then
+  begin
+    case SendMessage(FHandle, BM_GETCHECK, 0, 0) of
+      1: FState := cbChecked;
+      2: FState := cbGrayed;
+      else FState := cbUnchecked;
+    end;
+    FChecked := (FState = cbChecked);
+  end;
+  inherited DestroyWnd;
 end;
 
 procedure TCheckBox.SetChecked(Value: Boolean);
@@ -729,7 +760,9 @@ begin
   inherited CreateParams(Params);
   FillChar(Params.WinClassName, SizeOf(Params.WinClassName), 0);
   StrCopy(Params.WinClassName, 'BUTTON');
-  Params.Style := WS_CHILD or WS_VISIBLE or WS_TABSTOP or BS_AUTORADIOBUTTON;
+  Params.Style := WS_CHILD or WS_TABSTOP or BS_AUTORADIOBUTTON;
+  if FVisible then
+    Params.Style := Params.Style or WS_VISIBLE;
 end;
 
 procedure TRadioButton.CreateWnd;
@@ -740,6 +773,13 @@ begin
   if FChecked then CheckFlag := 1 else CheckFlag := 0;
   if FHandle <> 0 then
     SendMessage(FHandle, BM_SETCHECK, CheckFlag, 0);
+end;
+
+procedure TRadioButton.DestroyWnd;
+begin
+  if HandleAllocated then
+    FChecked := SendMessage(FHandle, BM_GETCHECK, 0, 0) <> 0;
+  inherited DestroyWnd;
 end;
 
 procedure TRadioButton.SetChecked(Value: Boolean);
@@ -787,7 +827,9 @@ begin
   inherited CreateParams(Params);
   FillChar(Params.WinClassName, SizeOf(Params.WinClassName), 0);
   StrCopy(Params.WinClassName, 'BUTTON');
-  Params.Style := WS_CHILD or WS_VISIBLE or WS_CLIPCHILDREN or BS_GROUPBOX;
+  Params.Style := WS_CHILD or WS_CLIPCHILDREN or BS_GROUPBOX;
+  if FVisible then
+    Params.Style := Params.Style or WS_VISIBLE;
 end;
 
 procedure TGroupBox.Paint;
@@ -817,11 +859,32 @@ begin
   inherited CreateParams(Params);
   FillChar(Params.WinClassName, SizeOf(Params.WinClassName), 0);
   StrCopy(Params.WinClassName, 'EDIT');
-  Params.Style := WS_CHILD or WS_VISIBLE or WS_BORDER or WS_TABSTOP or ES_AUTOHSCROLL;
+  Params.Style := WS_CHILD or WS_BORDER or WS_TABSTOP or ES_AUTOHSCROLL;
+  if FVisible then
+    Params.Style := Params.Style or WS_VISIBLE;
   if FReadOnly then
     Params.Style := Params.Style or ES_READONLY;
   if FOEMConvert then
     Params.Style := Params.Style or ES_OEMCONVERT;
+end;
+
+procedure TCustomEdit.CreateWnd;
+begin
+  inherited CreateWnd;
+  if HandleAllocated then
+  begin
+    if FPasswordChar <> #0 then
+      SendMessage(FHandle, EM_SETPASSWORDCHAR, Ord(FPasswordChar), 0);
+    if FMaxLength > 0 then
+      SendMessage(FHandle, EM_LIMITTEXT, FMaxLength, 0);
+  end;
+end;
+
+procedure TCustomEdit.DestroyWnd;
+begin
+  if HandleAllocated then
+    FCaption := GetText;
+  inherited DestroyWnd;
 end;
 
 function TCustomEdit.GetText: string;
@@ -1045,7 +1108,7 @@ end;
 
 procedure TListBoxStrings.SyncToHandle;
 var
-  I: Integer;
+  I, Idx: Integer;
   Buf: array[0..255] of Char;
 begin
   if (FListBox <> nil) and FListBox.HandleAllocated then
@@ -1054,8 +1117,9 @@ begin
     for I := 0 to FBuffer.Count - 1 do
     begin
       StrPLCopy(Buf, FBuffer[I], 255);
-      SendMessage(FListBox.Handle, LB_ADDSTRING, 0, LongInt(@Buf));
-      SendMessage(FListBox.Handle, LB_SETITEMDATA, I, LongInt(FBuffer.Objects[I]));
+      Idx := SendMessage(FListBox.Handle, LB_ADDSTRING, 0, LongInt(@Buf));
+      if Idx >= 0 then
+        SendMessage(FListBox.Handle, LB_SETITEMDATA, Idx, LongInt(FBuffer.Objects[I]));
     end;
   end;
 end;
@@ -1078,6 +1142,8 @@ begin
   FSorted := False;
   FIntegralHeight := True;
   FColumns := 0;
+  FSaveItemIndex := -1;
+  FSaveTopIndex := 0;
 end;
 
 destructor TCustomListBox.Destroy;
@@ -1092,7 +1158,9 @@ begin
   inherited CreateParams(Params);
   FillChar(Params.WinClassName, SizeOf(Params.WinClassName), 0);
   StrCopy(Params.WinClassName, 'LISTBOX');
-  Params.Style := WS_CHILD or WS_VISIBLE or WS_BORDER or WS_VSCROLL or WS_TABSTOP or LBS_NOTIFY;
+  Params.Style := WS_CHILD or WS_BORDER or WS_VSCROLL or WS_TABSTOP or LBS_NOTIFY;
+  if FVisible then
+    Params.Style := Params.Style or WS_VISIBLE;
   if FSorted then
     Params.Style := Params.Style or LBS_SORT;
   if FMultiSelect then
@@ -1119,6 +1187,28 @@ begin
   inherited CreateWindowHandle(Params);
   if FItems is TListBoxStrings then
     TListBoxStrings(FItems).SyncToHandle;
+end;
+
+procedure TCustomListBox.CreateWnd;
+begin
+  inherited CreateWnd;
+  if HandleAllocated then
+  begin
+    if FSaveItemIndex >= 0 then
+      SendMessage(FHandle, LB_SETCURSEL, FSaveItemIndex, 0);
+    if FSaveTopIndex > 0 then
+      SendMessage(FHandle, LB_SETTOPINDEX, FSaveTopIndex, 0);
+  end;
+end;
+
+procedure TCustomListBox.DestroyWnd;
+begin
+  if HandleAllocated then
+  begin
+    FSaveItemIndex := GetItemIndex;
+    FSaveTopIndex := GetTopIndex;
+  end;
+  inherited DestroyWnd;
 end;
 
 procedure TCustomListBox.DrawItem(Index: Integer; Rect: TRect; State: TOwnerDrawState);
@@ -1163,6 +1253,8 @@ end;
 procedure TCustomListBox.Clear;
 begin
   FItems.Clear;
+  FSaveItemIndex := -1;
+  FSaveTopIndex := 0;
 end;
 
 function TCustomListBox.GetItemIndex: Integer;
@@ -1170,11 +1262,12 @@ begin
   if HandleAllocated then
     Result := SendMessage(FHandle, LB_GETCURSEL, 0, 0)
   else
-    Result := -1;
+    Result := FSaveItemIndex;
 end;
 
 procedure TCustomListBox.SetItemIndex(Value: Integer);
 begin
+  FSaveItemIndex := Value;
   if HandleAllocated then
     SendMessage(FHandle, LB_SETCURSEL, Value, 0);
 end;
@@ -1197,11 +1290,12 @@ begin
   if HandleAllocated then
     Result := SendMessage(FHandle, LB_GETTOPINDEX, 0, 0)
   else
-    Result := 0;
+    Result := FSaveTopIndex;
 end;
 
 procedure TCustomListBox.SetTopIndex(Value: Integer);
 begin
+  FSaveTopIndex := Value;
   if HandleAllocated then
     SendMessage(FHandle, LB_SETTOPINDEX, Value, 0);
 end;
@@ -1355,6 +1449,7 @@ begin
   FDropDownCount := 8;
   FItemHeight := 16;
   FMaxLength := 0;
+  FSaveItemIndex := -1;
 end;
 
 destructor TCustomComboBox.Destroy;
@@ -1383,7 +1478,9 @@ begin
   inherited CreateParams(Params);
   FillChar(Params.WinClassName, SizeOf(Params.WinClassName), 0);
   StrCopy(Params.WinClassName, 'COMBOBOX');
-  Params.Style := WS_CHILD or WS_VISIBLE or WS_VSCROLL or WS_TABSTOP or CBS_AUTOHSCROLL;
+  Params.Style := WS_CHILD or WS_VSCROLL or WS_TABSTOP or CBS_AUTOHSCROLL;
+  if FVisible then
+    Params.Style := Params.Style or WS_VISIBLE;
   case FStyle of
     csSimple:           Params.Style := Params.Style or CBS_SIMPLE;
     csDropDownList:     Params.Style := Params.Style or CBS_DROPDOWNLIST;
@@ -1402,9 +1499,34 @@ begin
     TComboBoxStrings(FItems).SyncToHandle;
 end;
 
+procedure TCustomComboBox.CreateWnd;
+begin
+  inherited CreateWnd;
+  if HandleAllocated then
+  begin
+    if FMaxLength > 0 then
+      SendMessage(FHandle, $0141 {CB_LIMITTEXT}, FMaxLength, 0);
+    if FSaveItemIndex >= 0 then
+      SendMessage(FHandle, CB_SETCURSEL, FSaveItemIndex, 0)
+    else if FCaption <> '' then
+      SetWindowText(FHandle, PChar(FCaption));
+  end;
+end;
+
+procedure TCustomComboBox.DestroyWnd;
+begin
+  if HandleAllocated then
+  begin
+    FSaveItemIndex := GetItemIndex;
+    FCaption := GetText;
+  end;
+  inherited DestroyWnd;
+end;
+
 procedure TCustomComboBox.Clear;
 begin
   FItems.Clear;
+  FSaveItemIndex := -1;
   SetText('');
 end;
 
@@ -1413,11 +1535,12 @@ begin
   if HandleAllocated then
     Result := SendMessage(FHandle, CB_GETCURSEL, 0, 0)
   else
-    Result := -1;
+    Result := FSaveItemIndex;
 end;
 
 procedure TCustomComboBox.SetItemIndex(Value: Integer);
 begin
+  FSaveItemIndex := Value;
   if HandleAllocated then
     SendMessage(FHandle, CB_SETCURSEL, Value, 0);
 end;
@@ -1557,8 +1680,10 @@ begin
   inherited CreateParams(Params);
   FillChar(Params.WinClassName, SizeOf(Params.WinClassName), 0);
   StrCopy(Params.WinClassName, 'EDIT');
-  Params.Style := WS_CHILD or WS_VISIBLE or WS_BORDER or WS_TABSTOP or
+  Params.Style := WS_CHILD or WS_BORDER or WS_TABSTOP or
                   ES_MULTILINE or ES_AUTOVSCROLL;
+  if FVisible then
+    Params.Style := Params.Style or WS_VISIBLE;
   if not FWordWrap then
     Params.Style := Params.Style or ES_AUTOHSCROLL;
   if (FScrollBars = ssHorizontal) or (FScrollBars = ssBoth) then
@@ -1567,6 +1692,20 @@ begin
     Params.Style := Params.Style or WS_VSCROLL;
   if FReadOnly then
     Params.Style := Params.Style or ES_READONLY;
+end;
+
+procedure TMemo.CreateWnd;
+begin
+  inherited CreateWnd;
+  if HandleAllocated and (FLines.Count > 0) then
+    SetWindowText(FHandle, PChar(FLines.Text));
+end;
+
+procedure TMemo.DestroyWnd;
+begin
+  if HandleAllocated then
+    FLines.Text := GetText;
+  inherited DestroyWnd;
 end;
 
 function TMemo.GetText: string;
