@@ -478,10 +478,7 @@ end;
 destructor TControl.Destroy;
 begin
   if FParent <> nil then
-  begin
-    FParent.FControls.Remove(Self);
-    FParent := nil;
-  end;
+    FParent.RemoveControl(Self);
   FFont.Free;
   inherited Destroy;
 end;
@@ -1012,9 +1009,16 @@ begin
 end;
 
 procedure TWinControl.RemoveControl(AControl: TControl);
+var
+  R: TRect;
 begin
   if AControl <> nil then
   begin
+    if HandleAllocated and not (AControl is TWinControl) then
+    begin
+      R := AControl.BoundsRect;
+      InvalidateRect(FHandle, @R, True);
+    end;
     FControls.Remove(AControl);
     if AControl.FParent = Self then
       AControl.FParent := nil;
